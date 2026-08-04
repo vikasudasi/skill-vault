@@ -16,6 +16,7 @@ class Settings:
     web_port: int
     seed_dir: str
     pgvector_dsn: str | None
+    rate_limit_per_minute: int
 
 
 @lru_cache(maxsize=1)
@@ -30,4 +31,5 @@ def get_settings() -> Settings:
         web_port=int(os.getenv("SKILL_VAULT_WEB_PORT", "8000")),
         seed_dir=os.getenv("SKILL_VAULT_SEED_DIR", "./skill_vault/data/skills"),
         pgvector_dsn=os.getenv("SKILL_VAULT_PGVECTOR_DSN") or None,
+        rate_limit_per_minute=int(os.getenv("SKILL_VAULT_RATE_LIMIT_PER_MINUTE", "60")),
     )
