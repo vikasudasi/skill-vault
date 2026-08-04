@@ -17,6 +17,7 @@ dependencies = [
   "pydantic-settings",
   "click",
   "rich",
+  "cryptography",
 ]
 
 [project.optional-dependencies]

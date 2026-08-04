@@ -11,6 +11,11 @@ from skill_vault.auth import AgentContext, AuthService
 from skill_vault.config import get_settings
 from skill_vault.db import connect, run_migrations
 from skill_vault.search import Embedder, SearchService, build_store
+from skill_vault.trust import (
+    TrustService,
+    canonical_payload,
+    generate_curator_keypair,
+)
 
 console = Console()
 
@@ -109,6 +114,57 @@ def reindex_command(db_path: str | None, force: bool) -> None:
 @cli.command("seed", help="Seed curated skills into the registry (stub).")
 def seed_command() -> None:
     console.print("[yellow]seed not implemented[/yellow]")
+
+
+@cli.command("verify", help="Check content integrity + signature for a skill version.")
+@click.argument("version_id", type=str)
+@click.option("--db-path", default=None, type=str, help="Path to the SQLite database file.")
+def verify_command(version_id: str, db_path: str | None) -> None:
+    import json
+
+    settings = get_settings()
+    resolved = db_path or settings.db_path
+    db = connect(resolved)
+    run_migrations(db, "migrations")
+    row = db.execute("SELECT * FROM skill_versions WHERE id = ?", (version_id,)).fetchone()
+    if row is None:
+        console.print(f"[red]No skill version:[/red] {version_id}")
+        raise SystemExit(1)
+    payload = canonical_payload(
+        name=row["name"],
+        description=row["description"],
+        tags=json.loads(row["tags"]),
+        triggers=json.loads(row["triggers"]),
+        meta_json=json.loads(row["meta_json"]),
+        body=row["body"],
+    )
+    trust = TrustService(db, allow_tiers=settings.trust_allow.split(","))
+    integrity = trust.verify_integrity(version_id, payload)
+    sig = trust.verify_signature(version_id, payload)
+    console.print(f"[bold]tier:[/bold] {trust.resolve_tier(version_id)}")
+    int_status = "OK" if integrity["ok"] else "MISMATCH"
+    console.print(
+        f"[bold]integrity:[/bold] {int_status} (stored={integrity['expected'][:12]}… "
+        f"actual={integrity['actual'][:12]}…)"
+    )
+    sig_status = (
+        "verified (signed)" if sig["verified"] else ("unsigned" if not sig["signed"] else "INVALID")
+    )
+    console.print(f"[bold]signature:[/bold] {sig_status}")
+
+
+@cli.group("curator", help="Curator keypair & signing tools.")
+def curator_group() -> None:
+    """Curator command group."""
+
+
+@curator_group.command("gen-key", help="Generate a new curator ed25519 keypair.")
+def curator_gen_key_command() -> None:
+    private_key, public_key = generate_curator_keypair()
+    console.print("[bold yellow]PRIVATE (keep secret, for signing):[/bold yellow]")
+    console.print(private_key)
+    console.print("[bold green]PUBLIC (share, for verification):[/bold green]")
+    console.print(public_key)
 
 
 @cli.command("serve", help="Run local Skill Vault services (stub).")
