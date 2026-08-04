@@ -7,6 +7,7 @@ from rich.console import Console
 
 from skill_vault.config import get_settings
 from skill_vault.db import connect, run_migrations
+from skill_vault.search import Embedder, SearchService, build_store
 
 console = Console()
 
@@ -63,9 +64,28 @@ def seed_command() -> None:
     console.print("[yellow]seed not implemented[/yellow]")
 
 
-@cli.command("reindex", help="Rebuild the vector index for skill versions (stub).")
-def reindex_command() -> None:
-    console.print("[yellow]reindex not implemented[/yellow]")
+@cli.command("reindex", help="(Re)embed all skill versions into the vector index.")
+@click.option(
+    "--db-path",
+    default=None,
+    type=str,
+    help="Path to the SQLite database file.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Embed all versions (default: only ones missing an embedding).",
+)
+def reindex_command(db_path: str | None, force: bool) -> None:
+    settings = get_settings()
+    resolved_db_path = db_path or settings.db_path
+    db = connect(resolved_db_path)
+    run_migrations(db, "migrations")
+    store = build_store(settings.vector_backend, resolved_db_path, settings.pgvector_dsn)
+    embedder = Embedder(settings.embed_model)
+    service = SearchService(db, store, embedder)
+    count = service.reindex_all()
+    console.print(f"[green]Reindexed {count} skill version(s).[/green]")
 
 
 @cli.command("serve", help="Run local Skill Vault services (stub).")

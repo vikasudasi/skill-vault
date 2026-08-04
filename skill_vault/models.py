@@ -113,4 +113,3 @@ class VerifyResult(BaseModel):
     verified: bool
     signed_by: str | None
     content_hash: str
-
