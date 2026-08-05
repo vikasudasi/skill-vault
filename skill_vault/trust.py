@@ -156,16 +156,23 @@ class TrustService:
     # -- tier ---------------------------------------------------------------
 
     def compute_tier(
-        self, *, owner_agent_id: str | None, signature: str | None, public_key: str | None
+        self,
+        *,
+        owner_agent_id: str | None,
+        signature: str | None,
+        public_key: str | None,
+        visibility: str | None = None,
     ) -> str:
         """Tier for a newly published skill.
 
         - A valid signature by a known curator public key => ``verified``.
+        - Otherwise a global (public/community) skill => ``public``.
         - Otherwise an owned/private skill => ``user``.
-        - Otherwise a public/community skill => ``public``.
         """
         if signature and public_key and public_key in self._policy.known_public_keys:
             return TIER_VERIFIED
+        if visibility == "global":
+            return TIER_PUBLIC
         if owner_agent_id is not None:
             return TIER_USER
         return TIER_PUBLIC

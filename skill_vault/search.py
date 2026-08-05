@@ -134,8 +134,9 @@ class SqliteVecStore(VectorStore):
         body_weight: float = BODY_WEIGHT,
     ) -> None:
         super().__init__(meta_weight=meta_weight, body_weight=body_weight)
-        self._db = sqlite3.connect(db_path)
+        self._db = sqlite3.connect(db_path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        self._db.execute("PRAGMA journal_mode=WAL;")
         self._db.execute("PRAGMA foreign_keys=ON;")
         self._enable_extension(self._db)
         for table in ("skill_embeddings_meta", "skill_embeddings_body"):

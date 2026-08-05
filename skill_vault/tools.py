@@ -1,108 +1,75 @@
+"""MCP tool surface — thin FastMCP bindings over the :class:`RegistryService`.
+
+The tools delegate to the registry service (``service.py``) and translate domain
+errors (``SV_*`` codes) into MCP errors. Kept thin by design so all business
+logic stays unit-testable without an MCP runtime.
+"""
+
 from __future__ import annotations
 
-from skill_vault.models import (
-    DeleteResult,
-    PublishResult,
-    SkillCard,
-    SkillDetail,
-    SkillInput,
-    VerifyResult,
-)
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-SV_UNAUTHENTICATED = "SV_UNAUTHENTICATED"
-SV_FORBIDDEN = "SV_FORBIDDEN"
-SV_NOT_FOUND = "SV_NOT_FOUND"
-SV_INVALID_SKILL = "SV_INVALID_SKILL"
-SV_INTEGRITY = "SV_INTEGRITY"
-SV_RATE_LIMITED = "SV_RATE_LIMITED"
-SV_CONFLICT = "SV_CONFLICT"
+from fastmcp import FastMCP
+
+from skill_vault.db import locked
+from skill_vault.errors import SkillVaultError
+from skill_vault.models import DeleteResult, PublishResult, SkillCard, SkillDetail, SkillInput
+from skill_vault.service import RegistryService
 
 
-class SkillVaultError(Exception):
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        super().__init__(message)
+@contextmanager
+def _translate_errors() -> Iterator[None]:
+    try:
+        yield
+    except SkillVaultError as exc:
+        raise ValueError(f"{exc.code}: {exc}") from exc
 
 
-def search_skills(
-    query: str,
-    scope: str = "global",
-    limit: int = 10,
-    min_trust: str | None = None,
-    agent_key: str | None = None,
-) -> list[SkillCard]:
-    """SkillCard = {id, name, description, tags, trust, score, version} - lightweight, no body.
+def register_tools(server: FastMCP, registry: RegistryService) -> None:
+    """Register the Skill Vault tool surface on ``server`` against ``registry``."""
 
-    Scope semantics:
-    - global -> any agent (even unauthenticated) may search the curated global store.
-    - personal -> only that agent's private vault (requires valid agent_key).
-    - all -> union of global + own personal (requires agent_key).
+    @server.tool(description="Semantic search for relevant skills by natural-language query.")
+    def search_skills(
+        query: str,
+        scope: str = "global",
+        limit: int = 10,
+        min_trust: str | None = None,
+        agent_key: str | None = None,
+    ) -> list[SkillCard]:
+        with locked(), _translate_errors():
+            return registry.search(
+                query=query, scope=scope, limit=limit, min_trust=min_trust, agent_key=agent_key
+            )
 
-    Errors: SV_UNAUTHENTICATED, SV_FORBIDDEN, SV_RATE_LIMITED.
-    """
-    raise NotImplementedError(SV_UNAUTHENTICATED)
+    @server.tool(description="Fetch the full content of a skill by id or version id.")
+    def get_skill(id: str, version: int | None = None, agent_key: str | None = None) -> SkillDetail:
+        with locked(), _translate_errors():
+            return registry.get(identifier=id, version=version, agent_key=agent_key)
 
+    @server.tool(description="Publish a new skill to your vault (global or personal).")
+    def publish_skill(
+        skill: SkillInput, visibility: str = "personal", agent_key: str | None = None
+    ) -> PublishResult:
+        with locked(), _translate_errors():
+            return registry.publish(skill=skill, visibility=visibility, agent_key=agent_key)
 
-def get_skill(id: str, agent_key: str | None = None) -> SkillDetail:
-    """SkillDetail = {
-        id, name, description, body, version, tags, trust, content_hash, verified, owner
-    }.
+    @server.tool(description="Update an existing skill you own (creates a new version).")
+    def update_skill(id: str, skill: SkillInput, agent_key: str | None = None) -> PublishResult:
+        with locked(), _translate_errors():
+            return registry.update(identifier=id, skill=skill, agent_key=agent_key)
 
-    Full body returned. Server re-derives sha256(body) and verifies it matches content_hash before
-    returning. On mismatch, raises SV_INTEGRITY and never returns tampered content.
+    @server.tool(description="Delete a skill you own.")
+    def delete_skill(id: str, agent_key: str | None = None) -> DeleteResult:
+        with locked(), _translate_errors():
+            return registry.delete(identifier=id, agent_key=agent_key)
 
-    Errors: SV_NOT_FOUND, SV_FORBIDDEN, SV_INTEGRITY.
-    """
-    raise NotImplementedError(SV_NOT_FOUND)
+    @server.tool(description="List the skills in your personal vault.")
+    def list_my_skills(agent_key: str | None = None) -> list[SkillCard]:
+        with locked(), _translate_errors():
+            return registry.list_my(agent_key=agent_key)
 
-
-def publish_skill(
-    skill: SkillInput,
-    visibility: str = "personal",
-    *,
-    agent_key: str,
-) -> PublishResult:
-    """SkillInput = {name, description, tags[], triggers[], body, meta{}}.
-
-    Creates a new skill; duplicate name in requesting agent scope returns SV_CONFLICT (use
-    update_skill). Assigns version=1, content_hash=sha256(canonical(skill)), trust='user' (personal)
-    or 'public' (global, if publishing allowed).
-
-    Errors: SV_UNAUTHENTICATED, SV_INVALID_SKILL, SV_CONFLICT, SV_FORBIDDEN.
-    """
-    raise NotImplementedError(SV_INVALID_SKILL)
-
-
-def update_skill(id: str, skill: SkillInput, agent_key: str) -> PublishResult:
-    """Only the owning agent (or curator for global seed) may update.
-
-    Appends a new immutable version (version=max+1), updates current_version_id.
-    Previous versions remain addressable/hash-pinned.
-
-    Errors: SV_UNAUTHENTICATED, SV_NOT_FOUND, SV_FORBIDDEN, SV_INVALID_SKILL.
-    """
-    raise NotImplementedError(SV_NOT_FOUND)
-
-
-def list_my_skills(agent_key: str, scope: str = "all") -> list[SkillCard]:
-    """List cards (no bodies) for the authenticated agent's personal vault and optional global scope.
-
-    Errors: SV_UNAUTHENTICATED, SV_FORBIDDEN.
-    """
-    raise NotImplementedError(SV_UNAUTHENTICATED)
-
-
-def delete_skill(id: str, agent_key: str) -> DeleteResult:
-    """Owner-only soft delete (marks removed), while keeping version history for audit.
-
-    Errors: SV_UNAUTHENTICATED, SV_NOT_FOUND, SV_FORBIDDEN.
-    """
-    raise NotImplementedError(SV_FORBIDDEN)
-
-
-def verify_skill(id: str) -> VerifyResult:
-    """Return {trust, verified: bool, signed_by, content_hash} for current version.
-
-    Errors: SV_NOT_FOUND, SV_INTEGRITY.
-    """
-    raise NotImplementedError(SV_INTEGRITY)
+    @server.tool(description="Browse the global (public) skill store with pagination.")
+    def list_global_skills(limit: int = 20, offset: int = 0) -> list[SkillCard]:
+        with locked(), _translate_errors():
+            return registry.list_global(limit=limit, offset=offset)
