@@ -59,6 +59,9 @@ class RegistryService:
             raise AuthenticationError("an agent API key is required for this operation")
         return ctx
 
+    def _as_agent(self, agent_id: str) -> AgentContext:
+        return AgentContext(agent_id=agent_id, key_id=None, scope="authenticated")
+
     # -- search -------------------------------------------------------------
 
     def search(
@@ -101,7 +104,12 @@ class RegistryService:
     def get(
         self, identifier: str, version: int | None = None, agent_key: str | None = None
     ) -> SkillDetail:
-        ctx = self._ctx(agent_key)
+        return self._get(self._ctx(agent_key), identifier, version)
+
+    def admin_get(self, agent_id: str, identifier: str, version: int | None = None) -> SkillDetail:
+        return self._get(self._as_agent(agent_id), identifier, version)
+
+    def _get(self, ctx: AgentContext, identifier: str, version: int | None = None) -> SkillDetail:
         row = self._resolve_version(identifier, version)
         if row is None:
             raise NotFoundError(f"no skill or version matches {identifier!r}")
@@ -126,7 +134,12 @@ class RegistryService:
     # -- publish / update ---------------------------------------------------
 
     def publish(self, skill: SkillInput, visibility: str, agent_key: str | None) -> PublishResult:
-        ctx = self._require_auth(agent_key)
+        return self._publish(self._require_auth(agent_key), skill, visibility)
+
+    def admin_publish(self, agent_id: str, skill: SkillInput, visibility: str) -> PublishResult:
+        return self._publish(self._as_agent(agent_id), skill, visibility)
+
+    def _publish(self, ctx: AgentContext, skill: SkillInput, visibility: str) -> PublishResult:
         if visibility not in ("global", "personal"):
             raise InvalidSkillError(
                 f"visibility must be 'global' or 'personal', got {visibility!r}"
@@ -157,7 +170,12 @@ class RegistryService:
         return PublishResult(ok=True, id=skill_id, version=1, content_hash=digest)
 
     def update(self, identifier: str, skill: SkillInput, agent_key: str | None) -> PublishResult:
-        ctx = self._require_auth(agent_key)
+        return self._update(self._require_auth(agent_key), identifier, skill)
+
+    def admin_update(self, agent_id: str, identifier: str, skill: SkillInput) -> PublishResult:
+        return self._update(self._as_agent(agent_id), identifier, skill)
+
+    def _update(self, ctx: AgentContext, identifier: str, skill: SkillInput) -> PublishResult:
         if not skill.name.strip() or not skill.body.strip():
             raise InvalidSkillError("name and body are required")
         skill_row = self._load_skill(identifier)
@@ -191,7 +209,12 @@ class RegistryService:
     # -- delete -------------------------------------------------------------
 
     def delete(self, identifier: str, agent_key: str | None) -> DeleteResult:
-        ctx = self._require_auth(agent_key)
+        return self._delete(self._require_auth(agent_key), identifier)
+
+    def admin_delete(self, agent_id: str, identifier: str) -> DeleteResult:
+        return self._delete(self._as_agent(agent_id), identifier)
+
+    def _delete(self, ctx: AgentContext, identifier: str) -> DeleteResult:
         skill_row = self._load_skill(identifier)
         if skill_row is None:
             raise NotFoundError(f"no skill matches {identifier!r}")
@@ -208,7 +231,10 @@ class RegistryService:
             self._search.remove_version(vid)
             self._db.execute("DELETE FROM trust WHERE skill_version_id = ?", (vid,))
         # Break the FK back-reference (current_version_id) before deleting versions.
-        self._db.execute("UPDATE skills SET current_version_id = NULL WHERE id = ?", (skill_row["id"],))
+        self._db.execute(
+            "UPDATE skills SET current_version_id = NULL WHERE id = ?",
+            (skill_row["id"],),
+        )
         self._db.execute("DELETE FROM skill_versions WHERE skill_id = ?", (skill_row["id"],))
         self._db.execute("DELETE FROM skills WHERE id = ?", (skill_row["id"],))
         self._db.commit()
@@ -218,11 +244,17 @@ class RegistryService:
 
     def list_my(self, agent_key: str | None) -> list[SkillCard]:
         ctx = self._require_auth(agent_key)
+        return self._list_my(ctx.agent_id)
+
+    def admin_list_my(self, agent_id: str) -> list[SkillCard]:
+        return self._list_my(agent_id)
+
+    def _list_my(self, agent_id: str | None) -> list[SkillCard]:
         rows = self._db.execute(
             "SELECT s.id AS skill_id, v.id AS version_id, v.name, v.description, v.tags, "
             "v.version FROM skills s JOIN skill_versions v ON v.id = s.current_version_id "
             "WHERE s.owner_agent_id = ? ORDER BY s.updated_at DESC",
-            (ctx.agent_id,),
+            (agent_id,),
         ).fetchall()
         return [self._card_from_row(r) for r in rows]
 

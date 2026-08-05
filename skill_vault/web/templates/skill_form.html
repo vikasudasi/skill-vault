@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>{{ title }}</h2>
+  <form method="post" action="{{ action_url }}" class="stack">
+    <label for="name">Name</label>
+    <input id="name" name="name" value="{{ skill.name if skill else '' }}" required />
+
+    <label for="description">Description</label>
+    <input id="description" name="description" value="{{ skill.description if skill else '' }}" required />
+
+    <label for="tags">Tags (comma-separated)</label>
+    <input id="tags" name="tags" value="{{ tags }}" />
+
+    <label for="triggers">Triggers (comma-separated)</label>
+    <input id="triggers" name="triggers" value="{{ triggers }}" />
+
+    <label for="body">Body</label>
+    <textarea id="body" name="body" rows="12" required>{{ skill.body if skill else '' }}</textarea>
+
+    {% if mode == "new" %}
+    <fieldset>
+      <legend>Visibility</legend>
+      <label><input type="radio" name="visibility" value="personal" {% if visibility == "personal" %}checked{% endif %} /> Personal</label>
+      <label><input type="radio" name="visibility" value="global" {% if visibility == "global" %}checked{% endif %} /> Global</label>
+    </fieldset>
+    {% endif %}
+
+    <button type="submit">{{ submit_label }}</button>
+  </form>
+</section>
+{% endblock %}

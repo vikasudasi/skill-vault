@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Agents Overview{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>Agents</h2>
+  <p><a href="/dashboard/onboard">Onboard a new agent</a></p>
+  {% if agents %}
+  <ul class="list">
+    {% for agent in agents %}
+    <li>
+      <strong>{{ agent["name"] }}</strong>
+      <span class="muted">{{ agent["id"] }}</span>
+      <a href="/agents/{{ agent['id'] }}">Open dashboard</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No agents yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

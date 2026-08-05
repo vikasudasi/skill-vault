@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Skill Detail{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>{{ skill.name }}</h2>
+  <p>{{ skill.description }}</p>
+  <p><span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span></p>
+  <dl>
+    <dt>Skill ID</dt>
+    <dd><code>{{ skill.id }}</code></dd>
+    <dt>Version</dt>
+    <dd>{{ skill.version }}</dd>
+    <dt>Owner</dt>
+    <dd>{{ skill.owner or "global" }}</dd>
+    <dt>Tags</dt>
+    <dd>{{ skill.tags | join(", ") if skill.tags else "none" }}</dd>
+    <dt>Content hash</dt>
+    <dd><code>{{ skill.content_hash }}</code></dd>
+    <dt>Signature</dt>
+    <dd>{% if skill.verified %}verified{% else %}not signed{% endif %}</dd>
+    <dt>Integrity</dt>
+    <dd>{{ integrity_status }}</dd>
+    <dt>Created</dt>
+    <dd>{{ created_at or "unknown" }}</dd>
+  </dl>
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Onboard Agent{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>Onboard Agent</h2>
+  <form method="post" action="/dashboard/onboard" class="stack">
+    <label for="name">Agent name</label>
+    <input id="name" name="name" type="text" required />
+    <button type="submit">Create agent and issue key</button>
+  </form>
+</section>
+{% endblock %}

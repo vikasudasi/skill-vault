@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Global Browse{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>Global Skills</h2>
+  <form method="get" action="/browse" class="stack">
+    <label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}" />
+    <input type="hidden" name="page" value="1" />
+    <button type="submit">Search</button>
+  </form>
+</section>
+
+<section class="panel">
+  {% if skills %}
+  <ul class="list">
+    {% for skill in skills %}
+    <li>
+      <div>
+        <strong>{{ skill.name }}</strong>
+        <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+        <span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>
+        <p>{{ skill.description }}</p>
+      </div>
+      <a href="/skills/{{ skill.id }}">View</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No results.</p>
+  {% endif %}
+  <div class="pager">
+    {% if page > 1 %}
+    <a href="/browse?q={{ q }}&page={{ prev_page }}">Previous</a>
+    {% endif %}
+    {% if has_next %}
+    <a href="/browse?q={{ q }}&page={{ next_page }}">Next</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

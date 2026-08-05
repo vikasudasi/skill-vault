@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 dependencies = [
   "fastmcp",
   "fastapi",
+  "jinja2",
+  "python-multipart",
   "uvicorn[standard]",
   "sqlite-vec",
   "sentence-transformers",
@@ -26,6 +28,7 @@ dev = [
   "pytest-cov",
   "ruff",
   "mypy",
+  "httpx",
 ]
 
 [project.scripts]

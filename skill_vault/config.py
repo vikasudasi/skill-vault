@@ -17,6 +17,8 @@ class Settings:
     seed_dir: str
     pgvector_dsn: str | None
     rate_limit_per_minute: int
+    admin_username: str
+    admin_password: str
 
 
 @lru_cache(maxsize=1)
@@ -32,4 +34,6 @@ def get_settings() -> Settings:
         seed_dir=os.getenv("SKILL_VAULT_SEED_DIR", "./skill_vault/data/skills"),
         pgvector_dsn=os.getenv("SKILL_VAULT_PGVECTOR_DSN") or None,
         rate_limit_per_minute=int(os.getenv("SKILL_VAULT_RATE_LIMIT_PER_MINUTE", "60")),
+        admin_username=os.getenv("SKILL_VAULT_ADMIN_USERNAME", "admin"),
+        admin_password=os.getenv("SKILL_VAULT_ADMIN_PASSWORD", "skillvault"),
     )

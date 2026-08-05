@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Agent Dashboard{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>{{ agent["name"] }}</h2>
+  <p class="muted">{{ agent["id"] }}</p>
+  <p><a href="/agents/{{ agent_id }}/skills/new">Publish new skill</a></p>
+</section>
+
+<section class="panel">
+  <div class="tabs">
+    <button type="button" class="tab-button {% if active_tab == 'personal' %}is-active{% endif %}" data-tab-target="tab-personal">Personal</button>
+    <button type="button" class="tab-button {% if active_tab == 'global' %}is-active{% endif %}" data-tab-target="tab-global">Global</button>
+  </div>
+
+  <div id="tab-personal" class="tab-panel {% if active_tab == 'personal' %}is-active{% endif %}">
+    {% if personal_skills %}
+    <ul class="list">
+      {% for skill in personal_skills %}
+      <li>
+        <div>
+          <a href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
+          <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+          <span class="muted">v{{ skill.version }}</span>
+          <p>{{ skill.description }}</p>
+        </div>
+        <div class="actions">
+          <a href="/agents/{{ agent_id }}/skills/{{ skill.id }}/edit">Edit</a>
+          <form method="post" action="/agents/{{ agent_id }}/skills/{{ skill.id }}/delete">
+            <button type="submit" data-confirm="Delete this skill?">Delete</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No skills yet.</p>
+    {% endif %}
+  </div>
+
+  <div id="tab-global" class="tab-panel {% if active_tab == 'global' %}is-active{% endif %}">
+    <form method="get" action="/agents/{{ agent_id }}" class="stack">
+      <input type="hidden" name="tab" value="global" />
+      <label for="q">Search global skills</label>
+      <input id="q" name="q" type="search" value="{{ q }}" />
+      <input type="hidden" name="page" value="1" />
+      <button type="submit">Search</button>
+    </form>
+    {% if global_skills %}
+    <ul class="list">
+      {% for skill in global_skills %}
+      <li>
+        <div>
+          <a href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
+          <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+          <span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>
+          <p>{{ skill.description }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No results.</p>
+    {% endif %}
+    <div class="pager">
+      {% if page > 1 %}
+      <a href="/agents/{{ agent_id }}?tab=global&q={{ q }}&page={{ prev_page }}">Previous</a>
+      {% endif %}
+      {% if has_next %}
+      <a href="/agents/{{ agent_id }}?tab=global&q={{ q }}&page={{ next_page }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h3>API Keys</h3>
+  {% if keys %}
+  <table>
+    <thead>
+      <tr>
+        <th>Key ID</th>
+        <th>Prefix</th>
+        <th>Last used</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key in keys %}
+      <tr>
+        <td><code>{{ key.key_id }}</code></td>
+        <td><code>{{ key.key_prefix }}</code></td>
+        <td>{{ key.last_used_at or "never" }}</td>
+        <td>{% if key.revoked_at %}revoked{% else %}active{% endif %}</td>
+        <td>
+          <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/rotate" class="inline">
+            <button type="submit">Rotate</button>
+          </form>
+          <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/revoke" class="inline">
+            <button type="submit" data-confirm="Revoke this key?">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No keys.</p>
+  {% endif %}
+</section>
+{% endblock %}

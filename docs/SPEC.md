@@ -278,10 +278,20 @@ needed; consumers call this (or read `trust` on get) to validate before executin
 
 ## 7. Web Surface (FastAPI)
 
-- `GET /` homepage (product intro) — Homepage task.
-- `GET /configure` MCP config-steps page — Homepage task.
-- Dashboard routes (`/onboard`, `/agents/{id}`, `/skills`, …) — Dashboard task.
-- `GET /healthz` liveness; `GET /readyz` readiness (Deployment task).
+- `GET /` small JSON root stub (homepage lands in a later task).
+- `GET /healthz` liveness.
+- Dashboard/admin area (HTTP Basic auth, credentials distinct from agent API keys):
+  - `GET /dashboard` agents overview
+  - `GET /dashboard/onboard` and `POST /dashboard/onboard` (creates agent + shows API key once)
+  - `GET /agents/{agent_id}` agent dashboard (personal skills tab + global browser tab + key management)
+  - `GET /agents/{agent_id}/skills/new`, `POST /agents/{agent_id}/skills`
+  - `GET /agents/{agent_id}/skills/{skill_id}/edit`, `POST /agents/{agent_id}/skills/{skill_id}`
+  - `POST /agents/{agent_id}/skills/{skill_id}/delete`
+  - `POST /agents/{agent_id}/keys/{key_id}/rotate` (shows new key once)
+  - `POST /agents/{agent_id}/keys/{key_id}/revoke`
+- Public browse/read routes:
+  - `GET /browse` global search + pagination
+  - `GET /skills/{skill_id}` metadata + trust + integrity status (skill body not rendered)
 - MCP streamable-HTTP/SSE transport mounted for remote agent access (Core MCP + Deployment tasks).
 
 ## 8. Configuration (`.env.example` → `config.py`)
@@ -294,6 +304,8 @@ needed; consumers call this (or read `trust` on get) to validate before executin
 | `SKILL_VAULT_TRUST_ALLOW` | `verified,user` | host policy allow-list (Trust task) |
 | `SKILL_VAULT_CURATOR_KEY` | *(unset)* | ed25519 private key (base64) for signing (Trust task) |
 | `SKILL_VAULT_WEB_HOST` / `_PORT` | `0.0.0.0` / `8000` | uvicorn bind |
+| `SKILL_VAULT_ADMIN_USERNAME` | `admin` | dashboard basic-auth username (set securely in production) |
+| `SKILL_VAULT_ADMIN_PASSWORD` | `skillvault` | dashboard basic-auth password (set securely in production) |
 | `SKILL_VAULT_SEED_DIR` | `./skill_vault/data/skills` | curated seed library (Seed task) |
 
 ## 9. CLI
