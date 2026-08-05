@@ -8,6 +8,22 @@ version = "0.1.0"
 description = "Self-hostable MCP skill registry for AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Vik Udasi", email = "vikasudasi@gmail.com" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: Apache Software License",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: System :: Networking",
+]
+keywords = ["mcp", "skills", "ai", "agents", "registry", "semantic-search", "llm"]
+[project.urls]
+Homepage = "https://github.com/vikasudasi/skill-vault"
+Repository = "https://github.com/vikasudasi/skill-vault"
+Documentation = "https://github.com/vikasudasi/skill-vault#readme"
+Issues = "https://github.com/vikasudasi/skill-vault/issues"
+Changelog = "https://github.com/vikasudasi/skill-vault/blob/main/CHANGELOG.md"
 dependencies = [
   "fastmcp",
   "fastapi",
