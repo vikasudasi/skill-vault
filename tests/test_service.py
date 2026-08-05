@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from pathlib import Path
 
 import pytest
 from conftest import FakeEmbedder
@@ -22,7 +23,7 @@ from skill_vault.server import create_server
 from skill_vault.service import RegistryService
 from skill_vault.trust import TrustService
 
-MIGRATIONS = "/root/workspace/skill-vault/migrations"
+MIGRATIONS = str(Path(__file__).resolve().parent.parent / "migrations")
 
 
 def _services(tmp_path):

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from pathlib import Path
 
 import pytest
 from fixtures import (
@@ -47,7 +48,7 @@ def test_signed_skill_fixture_is_genuine() -> None:
     from skill_vault.trust import TrustService
 
     db = connect(":memory:")
-    run_migrations(db, "/root/workspace/skill-vault/migrations")
+    run_migrations(db, str(Path(__file__).resolve().parent.parent / "migrations"))
     trust = TrustService(db, known_public_keys=[fixture["public_key_b64"]])
     # the curated key marks the skill verified
     assert (

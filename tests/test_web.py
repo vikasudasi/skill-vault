@@ -18,7 +18,7 @@ from skill_vault.trust import TrustService
 from skill_vault.web.admin import AdminAuth
 from skill_vault.web.app import create_app
 
-MIGRATIONS = "/root/workspace/skill-vault/migrations"
+MIGRATIONS = str(Path(__file__).resolve().parent.parent / "migrations")
 
 
 def _services(tmp_path: Path) -> Services:
