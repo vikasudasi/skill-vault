@@ -22,7 +22,7 @@ from skill_vault.errors import (
 )
 from skill_vault.models import DeleteResult, PublishResult, SkillCard, SkillDetail, SkillInput
 from skill_vault.search import SearchService
-from skill_vault.trust import TrustService, canonical_payload, content_hash
+from skill_vault.trust import TIER_VERIFIED, TrustService, canonical_payload, content_hash
 
 _TIER_RANK = {"verified": 3, "user": 2, "public": 1}
 
@@ -139,6 +139,51 @@ class RegistryService:
 
     def admin_publish(self, agent_id: str, skill: SkillInput, visibility: str) -> PublishResult:
         return self._publish(self._as_agent(agent_id), skill, visibility)
+
+    def admin_publish_seed(
+        self,
+        skill: SkillInput,
+        *,
+        signature: str | None = None,
+        public_key: str | None = None,
+        signed_by: str | None = None,
+    ) -> PublishResult:
+        with locked():
+            if not skill.name.strip():
+                raise InvalidSkillError("skill name is required")
+            if not skill.body.strip():
+                raise InvalidSkillError("skill body is required")
+            if (signature is None) != (public_key is None):
+                raise InvalidSkillError("signature and public_key must be provided together")
+
+            payload = _build_payload(skill)
+            digest = content_hash(payload)
+            skill_id = str(uuid.uuid4())
+            version_id = str(uuid.uuid4())
+            now = _utc_now()
+
+            self._db.execute(
+                "INSERT INTO skills(id, name, owner_agent_id, visibility, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (skill_id, skill.name.strip(), None, "global", now, now),
+            )
+            self._insert_version(skill_id, version_id, 1, digest, skill, now)
+            self._db.execute(
+                "UPDATE skills SET current_version_id = ? WHERE id = ?", (version_id, skill_id)
+            )
+            if signature is not None and public_key is not None:
+                self._trust.record(
+                    version_id,
+                    TIER_VERIFIED,
+                    signature=signature,
+                    public_key=public_key,
+                    signed_by=signed_by,
+                )
+            else:
+                self._record_trust(version_id, None, "global")
+            self._search.index_version(version_id)
+            self._db.commit()
+            return PublishResult(ok=True, id=skill_id, version=1, content_hash=digest)
 
     def _publish(self, ctx: AgentContext, skill: SkillInput, visibility: str) -> PublishResult:
         with locked():

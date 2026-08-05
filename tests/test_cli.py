@@ -78,16 +78,6 @@ def test_whoami_resolves_issued_key(tmp_path: Path) -> None:
     assert "Authenticated:" in result.output
 
 
-# ---- seed (stub) --------------------------------------------------------------
-
-
-def test_seed_stub_prints_not_implemented() -> None:
-    runner = CliRunner()
-    result = runner.invoke(cli, ["seed"])
-    assert result.exit_code == 0
-    assert "not implemented" in result.output
-
-
 # ---- verify -------------------------------------------------------------------
 
 

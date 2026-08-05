@@ -20,6 +20,7 @@ dependencies = [
   "click",
   "rich",
   "cryptography",
+  "pyyaml",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ include = ["skill_vault*"]
 
 [tool.setuptools.package-data]
 "skill_vault.web" = ["templates/*.html", "static/*.css", "static/*.js"]
+"skill_vault.data" = ["skills/*/SKILL.md", "skills/*/references/*.md"]
 
 [tool.ruff]
 line-length = 100

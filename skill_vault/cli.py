@@ -18,6 +18,7 @@ from skill_vault.bootstrap import build_services
 from skill_vault.config import get_settings
 from skill_vault.db import connect, locked, run_migrations
 from skill_vault.search import Embedder, SearchService, build_store
+from skill_vault.seed import discover_seed_dir, seed_skills
 from skill_vault.server import create_server
 from skill_vault.trust import (
     TrustService,
@@ -171,9 +172,31 @@ def reindex_command(db_path: str | None, force: bool) -> None:
     console.print(f"[green]Reindexed {count} skill version(s).[/green]")
 
 
-@cli.command("seed", help="Seed curated skills into the registry (stub).")
-def seed_command() -> None:
-    console.print("[yellow]seed not implemented[/yellow]")
+@cli.command("seed", help="Seed curated skills from the library dir into the registry.")
+@click.option(
+    "--dir",
+    "seed_dir",
+    default=None,
+    type=str,
+    help="Directory of SKILL.md files (default: settings.seed_dir).",
+)
+@click.option("--db-path", default=None, type=str, help="Path to the SQLite database file.")
+@click.option(
+    "--curator-key",
+    default=None,
+    type=str,
+    help="ed25519 private key (base64) to sign verified seed skills (overrides env).",
+)
+def seed_command(seed_dir: str | None, db_path: str | None, curator_key: str | None) -> None:
+    settings = get_settings()
+    resolved_db_path = db_path or settings.db_path
+    service_settings = replace(settings, db_path=resolved_db_path)
+    services = build_services(service_settings)
+    selected_seed_dir = seed_dir or settings.seed_dir
+    resolved_seed_dir = discover_seed_dir(selected_seed_dir)
+    effective_curator_key = curator_key if curator_key is not None else settings.curator_key
+    count = seed_skills(services, resolved_seed_dir, effective_curator_key)
+    err_console.print(f"Seeded {count} skill(s) from {resolved_seed_dir} into the registry.")
 
 
 @cli.command("verify", help="Check content integrity + signature for a skill version.")
