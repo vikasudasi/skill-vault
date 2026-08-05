@@ -21,16 +21,16 @@ _PAGE_SIZE = 10
 @router.get("/", response_class=HTMLResponse)
 def homepage(request: Request) -> Response:
     settings = get_settings()
-    endpoint_host = _public_endpoint_host(settings.web_host)
-    endpoint = f"http://{endpoint_host}:{settings.web_port}/mcp"
+    endpoint_host = _public_endpoint_host(settings.mcp_host)
+    endpoint = f"http://{endpoint_host}:{settings.mcp_port}/mcp"
     return _templates(request).TemplateResponse(
         request,
         "homepage.html",
         {
             "endpoint": endpoint,
             "endpoint_host": endpoint_host,
-            "endpoint_port": settings.web_port,
-            "host_needs_substitution": settings.web_host == "0.0.0.0",
+            "endpoint_port": settings.mcp_port,
+            "host_needs_substitution": settings.mcp_host == "0.0.0.0",
         },
     )
 
@@ -38,16 +38,16 @@ def homepage(request: Request) -> Response:
 @router.get("/configure", response_class=HTMLResponse)
 def configure(request: Request) -> Response:
     settings = get_settings()
-    endpoint_host = _public_endpoint_host(settings.web_host)
-    endpoint = f"http://{endpoint_host}:{settings.web_port}/mcp"
+    endpoint_host = _public_endpoint_host(settings.mcp_host)
+    endpoint = f"http://{endpoint_host}:{settings.mcp_port}/mcp"
     return _templates(request).TemplateResponse(
         request,
         "configure.html",
         {
             "endpoint": endpoint,
             "endpoint_host": endpoint_host,
-            "endpoint_port": settings.web_port,
-            "host_needs_substitution": settings.web_host == "0.0.0.0",
+            "endpoint_port": settings.mcp_port,
+            "host_needs_substitution": settings.mcp_host == "0.0.0.0",
         },
     )
 

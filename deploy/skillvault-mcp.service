@@ -1,0 +1,15 @@
+[Unit]
+Description=Skill Vault MCP (streamable-http)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/skill-vault
+EnvironmentFile=/etc/skillvault.env
+ExecStart=/usr/bin/env skill-vault serve --transport streamable-http
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -38,6 +38,9 @@ skill-vault = "skill_vault.cli:cli"
 where = ["."]
 include = ["skill_vault*"]
 
+[tool.setuptools.package-data]
+"skill_vault.web" = ["templates/*.html", "static/*.css", "static/*.js"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

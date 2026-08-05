@@ -49,15 +49,15 @@
               <h3>Local stdio</h3>
               <button type="button" data-copy-target="run-stdio">Copy</button>
             </div>
-            <pre id="run-stdio" class="code-block">fastmcp run skill_vault/server.py:create_server</pre>
+            <pre id="run-stdio" class="code-block">skill-vault serve</pre>
           </article>
           <article class="code-card">
             <div class="code-toolbar">
               <h3>Remote streamable-http</h3>
               <button type="button" data-copy-target="run-remote">Copy</button>
             </div>
-            <pre id="run-remote" class="code-block">fastmcp run skill_vault/server.py:create_server --transport streamable-http --host 0.0.0.0 --port 8000</pre>
-            <p class="muted">Remote MCP URL pattern: <code>http://&lt;host&gt;:8000/mcp</code></p>
+            <pre id="run-remote" class="code-block">skill-vault serve --transport streamable-http --host 0.0.0.0 --port {{ endpoint_port }}</pre>
+            <p class="muted">Remote MCP URL pattern: <code>http://&lt;host&gt;:{{ endpoint_port }}/mcp</code></p>
             <p class="muted">Remote endpoint: <code>{{ endpoint }}</code></p>
             {% if host_needs_substitution %}
             <p class="muted">
@@ -82,7 +82,7 @@
               <span class="muted">~/.claude/settings.json or CLI</span>
               <button type="button" data-copy-target="claude-stdio">Copy</button>
             </div>
-            <pre id="claude-stdio" class="code-block">claude mcp add skill-vault -- fastmcp run skill_vault/server.py:create_server
+            <pre id="claude-stdio" class="code-block">claude mcp add skill-vault -- skill-vault serve
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
           </article>
 
@@ -105,8 +105,8 @@
             <pre id="cursor-stdio" class="code-block">{
   "mcpServers": {
     "skill-vault": {
-      "command": "fastmcp",
-      "args": ["run", "skill_vault/server.py:create_server"]
+      "command": "skill-vault",
+      "args": ["serve"]
     }
   }
 }
@@ -136,8 +136,8 @@
               <button type="button" data-copy-target="codex-stdio">Copy</button>
             </div>
             <pre id="codex-stdio" class="code-block">[mcp_servers.skill-vault]
-command = "fastmcp"
-args = ["run", "skill_vault/server.py:create_server"]
+command = "skill-vault"
+args = ["serve"]
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
           </article>
 
@@ -159,7 +159,7 @@ url = "{{ endpoint }}"
               <span class="muted">gemini mcp</span>
               <button type="button" data-copy-target="gemini-stdio">Copy</button>
             </div>
-            <pre id="gemini-stdio" class="code-block">gemini mcp add skill-vault -- fastmcp run skill_vault/server.py:create_server
+            <pre id="gemini-stdio" class="code-block">gemini mcp add skill-vault -- skill-vault serve
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
           </article>
 
