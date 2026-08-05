@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Vault | Configure MCP Clients</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='skillvault.css') }}" />
+    <script defer src="{{ url_for('static', path='skillvault.js') }}"></script>
+  </head>
+  <body>
+    <header class="page-header public-header">
+      <div class="container public-nav">
+        <p class="brand"><a href="/">Skill Vault</a></p>
+        <nav>
+          <a href="/">Homepage</a>
+          <a href="/dashboard">Dashboard</a>
+          <a href="/dashboard/onboard">Onboard</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container public-main">
+      <section class="panel">
+        <h1>Configure Skill Vault in 3 steps</h1>
+        <p>
+          Skill Vault supports local stdio and remote streamable-http MCP setups. Choose your transport,
+          then paste the client snippet for Claude Code, Cursor, Codex, or Gemini CLI.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Step 0 — Get an API key</h2>
+        <p>
+          Create an agent key from <a href="/dashboard/onboard">/dashboard/onboard</a>. The raw key is
+          shown once during onboarding.
+        </p>
+        <p class="muted">
+          Where's my key? Use the onboarding screen in the dashboard. Pass the key as the
+          <code>agent_key</code> tool argument on private/global tool calls. Skill Vault does not use a
+          connection-level auth header for this key.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Step 1 — Run the server</h2>
+        <div class="snippet-grid">
+          <article class="code-card">
+            <div class="code-toolbar">
+              <h3>Local stdio</h3>
+              <button type="button" data-copy-target="run-stdio">Copy</button>
+            </div>
+            <pre id="run-stdio" class="code-block">fastmcp run skill_vault/server.py:create_server</pre>
+          </article>
+          <article class="code-card">
+            <div class="code-toolbar">
+              <h3>Remote streamable-http</h3>
+              <button type="button" data-copy-target="run-remote">Copy</button>
+            </div>
+            <pre id="run-remote" class="code-block">fastmcp run skill_vault/server.py:create_server --transport streamable-http --host 0.0.0.0 --port 8000</pre>
+            <p class="muted">Remote MCP URL pattern: <code>http://&lt;host&gt;:8000/mcp</code></p>
+            <p class="muted">Remote endpoint: <code>{{ endpoint }}</code></p>
+            {% if host_needs_substitution %}
+            <p class="muted">
+              Replace <code>&lt;your-host-or-ip&gt;</code> with your externally reachable host.
+            </p>
+            {% endif %}
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Step 2 — Configure your client</h2>
+        <p class="muted">
+          Every snippet includes an <code>agent_key</code> note. Paste your key from dashboard onboarding and
+          pass it as the <code>agent_key</code> tool argument.
+        </p>
+
+        <div class="snippet-grid">
+          <article class="code-card">
+            <h3>Claude Code — stdio</h3>
+            <div class="code-toolbar">
+              <span class="muted">~/.claude/settings.json or CLI</span>
+              <button type="button" data-copy-target="claude-stdio">Copy</button>
+            </div>
+            <pre id="claude-stdio" class="code-block">claude mcp add skill-vault -- fastmcp run skill_vault/server.py:create_server
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Claude Code — streamable-http</h3>
+            <div class="code-toolbar">
+              <span class="muted">Remote MCP</span>
+              <button type="button" data-copy-target="claude-http">Copy</button>
+            </div>
+            <pre id="claude-http" class="code-block">claude mcp add skill-vault --transport http {{ endpoint }}
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Cursor — stdio (.cursor/mcp.json)</h3>
+            <div class="code-toolbar">
+              <span class="muted">Project config</span>
+              <button type="button" data-copy-target="cursor-stdio">Copy</button>
+            </div>
+            <pre id="cursor-stdio" class="code-block">{
+  "mcpServers": {
+    "skill-vault": {
+      "command": "fastmcp",
+      "args": ["run", "skill_vault/server.py:create_server"]
+    }
+  }
+}
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Cursor — streamable-http (.cursor/mcp.json)</h3>
+            <div class="code-toolbar">
+              <span class="muted">Remote URL</span>
+              <button type="button" data-copy-target="cursor-http">Copy</button>
+            </div>
+            <pre id="cursor-http" class="code-block">{
+  "mcpServers": {
+    "skill-vault": {
+      "url": "{{ endpoint }}"
+    }
+  }
+}
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Codex — stdio (~/.codex/config.toml)</h3>
+            <div class="code-toolbar">
+              <span class="muted">Codex CLI MCP</span>
+              <button type="button" data-copy-target="codex-stdio">Copy</button>
+            </div>
+            <pre id="codex-stdio" class="code-block">[mcp_servers.skill-vault]
+command = "fastmcp"
+args = ["run", "skill_vault/server.py:create_server"]
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Codex — streamable-http (~/.codex/config.toml)</h3>
+            <div class="code-toolbar">
+              <span class="muted">Remote MCP URL</span>
+              <button type="button" data-copy-target="codex-http">Copy</button>
+            </div>
+            <pre id="codex-http" class="code-block">[mcp_servers.skill-vault]
+transport = "http"
+url = "{{ endpoint }}"
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Gemini CLI — stdio</h3>
+            <div class="code-toolbar">
+              <span class="muted">gemini mcp</span>
+              <button type="button" data-copy-target="gemini-stdio">Copy</button>
+            </div>
+            <pre id="gemini-stdio" class="code-block">gemini mcp add skill-vault -- fastmcp run skill_vault/server.py:create_server
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Gemini CLI — streamable-http</h3>
+            <div class="code-toolbar">
+              <span class="muted">$HOME/.gemini/settings.json or CLI</span>
+              <button type="button" data-copy-target="gemini-http">Copy</button>
+            </div>
+            <pre id="gemini-http" class="code-block">gemini mcp add skill-vault --transport http {{ endpoint }}
+# agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Troubleshooting</h2>
+        <ul>
+          <li>Private skills missing? Ensure every private/global tool call includes <code>agent_key</code>.</li>
+          <li>
+            Remote connection refused? Confirm host/port are reachable and server started with
+            <code>--transport streamable-http</code>.
+          </li>
+          <li>Remote endpoint path must be <code>/mcp</code> (not a different route).</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

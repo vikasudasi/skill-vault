@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
 from skill_vault.bootstrap import Services
+from skill_vault.config import get_settings
 from skill_vault.db import locked
 from skill_vault.errors import SkillVaultError
 from skill_vault.models import SkillCard, SkillInput
@@ -15,6 +16,40 @@ from skill_vault.web.admin import require_admin
 
 router = APIRouter()
 _PAGE_SIZE = 10
+
+
+@router.get("/", response_class=HTMLResponse)
+def homepage(request: Request) -> Response:
+    settings = get_settings()
+    endpoint_host = _public_endpoint_host(settings.web_host)
+    endpoint = f"http://{endpoint_host}:{settings.web_port}/mcp"
+    return _templates(request).TemplateResponse(
+        request,
+        "homepage.html",
+        {
+            "endpoint": endpoint,
+            "endpoint_host": endpoint_host,
+            "endpoint_port": settings.web_port,
+            "host_needs_substitution": settings.web_host == "0.0.0.0",
+        },
+    )
+
+
+@router.get("/configure", response_class=HTMLResponse)
+def configure(request: Request) -> Response:
+    settings = get_settings()
+    endpoint_host = _public_endpoint_host(settings.web_host)
+    endpoint = f"http://{endpoint_host}:{settings.web_port}/mcp"
+    return _templates(request).TemplateResponse(
+        request,
+        "configure.html",
+        {
+            "endpoint": endpoint,
+            "endpoint_host": endpoint_host,
+            "endpoint_port": settings.web_port,
+            "host_needs_substitution": settings.web_host == "0.0.0.0",
+        },
+    )
 
 
 @router.get(
@@ -376,6 +411,10 @@ def _comma_list(raw: str) -> list[str]:
 
 def _normalize_page(page: int) -> int:
     return page if page > 0 else 1
+
+
+def _public_endpoint_host(host: str) -> str:
+    return "<your-host-or-ip>" if host == "0.0.0.0" else host
 
 
 def _skill_input(

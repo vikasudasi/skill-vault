@@ -149,3 +149,163 @@ td {
   padding: 0.4rem;
   text-align: left;
 }
+
+.public-header {
+  border-bottom: 1px solid #1e293b;
+}
+
+.public-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.public-nav .brand {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.public-main {
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+.hero {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.hero h1 {
+  margin-bottom: 0.75rem;
+}
+
+.hero-copy {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.button-link {
+  display: inline-block;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 8px;
+  text-decoration: none;
+  padding: 0.55rem 0.8rem;
+  font-weight: 700;
+}
+
+.button-link-muted {
+  background: #e2e8f0;
+  color: #111827;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.feature-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #ffffff;
+}
+
+.feature-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.endpoint-banner {
+  border-left: 4px solid #2563eb;
+}
+
+.endpoint-value {
+  margin-top: 0.25rem;
+}
+
+.endpoint-value code {
+  font-size: 0.95rem;
+}
+
+.public-footer {
+  padding-bottom: 2rem;
+}
+
+.snippet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.code-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.code-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.code-toolbar button {
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.code-block {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0.8rem;
+  }
+
+  .page-header a {
+    margin-right: 0.6rem;
+  }
+
+  .code-toolbar {
+    flex-wrap: wrap;
+  }
+}

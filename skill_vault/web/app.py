@@ -31,10 +31,6 @@ def create_app(services: Services | None = None, admin: AdminAuth | None = None)
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/")
-    async def root() -> dict[str, str]:
-        return {"message": "Skill Vault web root"}
-
     app.include_router(router)
 
     return app

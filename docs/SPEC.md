@@ -278,8 +278,10 @@ needed; consumers call this (or read `trust` on get) to validate before executin
 
 ## 7. Web Surface (FastAPI)
 
-- `GET /` small JSON root stub (homepage lands in a later task).
-- `GET /healthz` liveness.
+- Public routes:
+  - `GET /` homepage (marketing + product pitch + live endpoint banner + links to dashboard/configure/docs)
+  - `GET /configure` MCP configuration guide with verified stdio + streamable-http commands/snippets
+  - `GET /healthz` liveness
 - Dashboard/admin area (HTTP Basic auth, credentials distinct from agent API keys):
   - `GET /dashboard` agents overview
   - `GET /dashboard/onboard` and `POST /dashboard/onboard` (creates agent + shows API key once)
@@ -292,6 +294,8 @@ needed; consumers call this (or read `trust` on get) to validate before executin
 - Public browse/read routes:
   - `GET /browse` global search + pagination
   - `GET /skills/{skill_id}` metadata + trust + integrity status (skill body not rendered)
+- Configure-page auth note: `agent_key` is passed as a per-tool argument for private/global operations;
+  no connection-level key header is required for Skill Vault tool authorization.
 - MCP streamable-HTTP/SSE transport mounted for remote agent access (Core MCP + Deployment tasks).
 
 ## 8. Configuration (`.env.example` → `config.py`)

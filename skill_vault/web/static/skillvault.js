@@ -3,12 +3,25 @@ fromEventButtons("[data-copy-target]", function (button) {
   if (!targetId) {
     return;
   }
-  const input = document.getElementById(targetId);
-  if (!(input instanceof HTMLInputElement)) {
+  const target = document.getElementById(targetId);
+  if (!target) {
     return;
   }
-  navigator.clipboard.writeText(input.value).then(function () {
+  const text =
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+      ? target.value
+      : target.textContent || "";
+  if (!text) {
+    return;
+  }
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    button.textContent = "Clipboard unavailable";
+    return;
+  }
+  navigator.clipboard.writeText(text).then(function () {
     button.textContent = "Copied";
+  }).catch(function () {
+    button.textContent = "Copy failed";
   });
 });
 

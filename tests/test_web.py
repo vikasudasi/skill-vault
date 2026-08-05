@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from skill_vault.auth import AuthService
 from skill_vault.bootstrap import Services
+from skill_vault.config import get_settings
 from skill_vault.db import connect, run_migrations
 from skill_vault.models import SkillInput
 from skill_vault.search import SearchService, SqliteVecStore
@@ -56,6 +57,65 @@ def test_healthz(tmp_path: Path) -> None:
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_public_routes_render_html(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    homepage = client.get("/")
+    configure = client.get("/configure")
+    assert homepage.status_code == 200
+    assert configure.status_code == 200
+    assert homepage.headers["content-type"].startswith("text/html")
+    assert configure.headers["content-type"].startswith("text/html")
+
+
+def test_homepage_contains_core_pitch_and_links(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    response = client.get("/")
+    assert response.status_code == 200
+    page = response.text
+    assert "Skill Vault" in page
+    assert "One MCP endpoint" in page
+    assert "Per-agent private vaults" in page
+    assert "Verified supply chain" in page
+    assert 'href="/configure"' in page
+    assert 'href="/dashboard"' in page
+
+
+def test_configure_page_contains_verified_transport_snippets(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    response = client.get("/configure")
+    assert response.status_code == 200
+    page = response.text
+    assert "stdio" in page.lower()
+    assert "streamable-http" in page
+    assert "--transport streamable-http" in page
+    assert "/mcp" in page
+    assert "Claude Code" in page
+    assert "Cursor" in page
+    assert "Codex" in page
+    assert "Gemini CLI" in page
+    assert "agent_key" in page
+
+
+def test_public_pages_do_not_require_admin_auth(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    assert client.get("/").status_code == 200
+    assert client.get("/configure").status_code == 200
+
+
+def test_homepage_replaces_wildcard_host(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("SKILL_VAULT_WEB_HOST", "0.0.0.0")
+    monkeypatch.setenv("SKILL_VAULT_WEB_PORT", "8000")
+    get_settings.cache_clear()
+    try:
+        client, _ = _client(tmp_path)
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "your-host-or-ip" in response.text
+        assert "0.0.0.0" not in response.text
+    finally:
+        get_settings.cache_clear()
 
 
 def test_dashboard_requires_admin_auth(tmp_path: Path) -> None:
