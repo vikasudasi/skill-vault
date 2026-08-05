@@ -207,7 +207,9 @@ class RegistryService:
             if skill_row["current_version_id"]:
                 self._search.remove_version(skill_row["current_version_id"])
             self._db.commit()
-            return PublishResult(ok=True, id=skill_row["id"], version=next_version, content_hash=digest)
+            return PublishResult(
+                ok=True, id=skill_row["id"], version=next_version, content_hash=digest
+            )
 
     # -- delete -------------------------------------------------------------
 

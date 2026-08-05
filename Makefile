@@ -3,7 +3,7 @@ PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 SKILL_VAULT := $(VENV)/bin/skill-vault
 
-.PHONY: install init migrate seed lint format typecheck test check serve web mcp
+.PHONY: install init migrate seed lint format typecheck test check serve web mcp cov
 
 .venv:
 	python3 -m venv $(VENV)
@@ -36,10 +36,16 @@ lint:
 format:
 	$(VENV)/bin/ruff format .
 
+format-check:
+	$(VENV)/bin/ruff format --check .
+
 typecheck:
 	$(PYTHON) -m mypy skill_vault
 
 test:
 	$(VENV)/bin/pytest
 
-check: lint typecheck
+cov:
+	$(VENV)/bin/pytest tests/ --cov=skill_vault --cov-report=term-missing
+
+check: lint format-check typecheck

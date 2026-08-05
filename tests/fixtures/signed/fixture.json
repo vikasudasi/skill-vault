@@ -1,0 +1,24 @@
+{
+  "name": "curated-system-dump",
+  "description": "Curated reference for capturing and inspecting system inventory on Ubuntu.",
+  "tags": [
+    "sysadmin",
+    "ubuntu",
+    "diagnostics"
+  ],
+  "triggers": [
+    "system summary",
+    "hardware",
+    "dump",
+    "inventory"
+  ],
+  "meta": {
+    "author": "curator",
+    "source": "fixtures",
+    "license": "MIT"
+  },
+  "body": "# System inventory\n\nUse to capture a compact, repeatable system inventory on Ubuntu.\n\n```bash\nuname -a\nlscpu | head -20      # CPU/arch\nfree -h               # memory\ndf -h /               # root disk\nip -brief addr        # interfaces\n```\n",
+  "payload_b64": "eyJib2R5IjoiIyBTeXN0ZW0gaW52ZW50b3J5XG5cblVzZSB0byBjYXB0dXJlIGEgY29tcGFjdCwgcmVwZWF0YWJsZSBzeXN0ZW0gaW52ZW50b3J5IG9uIFVidW50dS5cblxuYGBgYmFzaFxudW5hbWUgLWFcbmxzY3B1IHwgaGVhZCAtMjAgICAgICAjIENQVS9hcmNoXG5mcmVlIC1oICAgICAgICAgICAgICAgIyBtZW1vcnlcbmRmIC1oIC8gICAgICAgICAgICAgICAjIHJvb3QgZGlza1xuaXAgLWJyaWVmIGFkZHIgICAgICAgICMgaW50ZXJmYWNlc1xuYGBgXG4iLCJkZXNjcmlwdGlvbiI6IkN1cmF0ZWQgcmVmZXJlbmNlIGZvciBjYXB0dXJpbmcgYW5kIGluc3BlY3Rpbmcgc3lzdGVtIGludmVudG9yeSBvbiBVYnVudHUuIiwibWV0YSI6eyJhdXRob3IiOiJjdXJhdG9yIiwibGljZW5zZSI6Ik1JVCIsInNvdXJjZSI6ImZpeHR1cmVzIn0sIm5hbWUiOiJjdXJhdGVkLXN5c3RlbS1kdW1wIiwidGFncyI6WyJkaWFnbm9zdGljcyIsInN5c2FkbWluIiwidWJ1bnR1Il0sInRyaWdnZXJzIjpbImR1bXAiLCJoYXJkd2FyZSIsImludmVudG9yeSIsInN5c3RlbSBzdW1tYXJ5Il19",
+  "signature_b64": "Bj/kUCzWT9QAOHSpGeOvTJqO3s6eCAQvV98PNgJR7lbci8lVZjYXbbyTMK+veS+gTm+o6IQsM7tejzveR3AyCg==",
+  "public_key_b64": "MD1QgK0hdWxClOjwYQPIaqbx6Z1+xlDzlkqJVyVZvd8="
+}

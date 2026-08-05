@@ -95,7 +95,8 @@ def onboard_submit(request: Request, name: str = Form(...)) -> Response:
     return _templates(request).TemplateResponse(
         request,
         "onboard_done.html",
-        {"agent_id": result.agent_id,
+        {
+            "agent_id": result.agent_id,
             "key_id": result.key_id,
             "raw_key": result.raw_key,
             "key_prefix": result.key_prefix,
@@ -139,7 +140,8 @@ def agent_dashboard(
     return templates.TemplateResponse(
         request,
         "agent_dashboard.html",
-        {"agent": agent_row,
+        {
+            "agent": agent_row,
             "agent_id": agent_id,
             "personal_skills": personal_skills,
             "keys": keys,
@@ -163,7 +165,8 @@ def new_skill_form(request: Request, agent_id: str) -> Response:
     return _templates(request).TemplateResponse(
         request,
         "skill_form.html",
-        {"title": "Publish Skill",
+        {
+            "title": "Publish Skill",
             "submit_label": "Publish",
             "action_url": f"/agents/{agent_id}/skills",
             "agent_id": agent_id,
@@ -216,7 +219,8 @@ def edit_skill_form(request: Request, agent_id: str, skill_id: str) -> Response:
     return _templates(request).TemplateResponse(
         request,
         "skill_form.html",
-        {"title": "Update Skill",
+        {
+            "title": "Update Skill",
             "submit_label": "Save Changes",
             "action_url": f"/agents/{agent_id}/skills/{skill_id}",
             "agent_id": agent_id,
@@ -282,7 +286,8 @@ def rotate_key(request: Request, agent_id: str, key_id: str) -> Response:
     return _templates(request).TemplateResponse(
         request,
         "onboard_done.html",
-        {"agent_id": agent_id,
+        {
+            "agent_id": agent_id,
             "key_id": issued.key_id,
             "raw_key": issued.raw_key,
             "key_prefix": issued.key_prefix,
@@ -322,7 +327,8 @@ def browse(
     return _templates(request).TemplateResponse(
         request,
         "browse.html",
-        {"q": query,
+        {
+            "q": query,
             "page": current_page,
             "prev_page": current_page - 1,
             "next_page": current_page + 1,
@@ -344,7 +350,8 @@ def skill_detail(request: Request, skill_id: str) -> Response:
     return _templates(request).TemplateResponse(
         request,
         "skill_detail.html",
-        {"skill": detail,
+        {
+            "skill": detail,
             "created_at": created_at,
             "integrity_status": "OK",
         },

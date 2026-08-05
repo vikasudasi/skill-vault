@@ -255,18 +255,12 @@ def serve_command(transport: str, host: str | None, port: int | None, db_path: s
         err_console.print("[green]Starting MCP server over stdio transport.[/green]")
     if transport == "streamable-http":
         server.run(
-            transport=cast(
-                Literal["stdio", "http", "sse", "streamable-http"], transport
-            ),
+            transport=cast(Literal["stdio", "http", "sse", "streamable-http"], transport),
             host=resolved_host,
             port=resolved_port,
         )
     else:
-        server.run(
-            transport=cast(
-                Literal["stdio", "http", "sse", "streamable-http"], transport
-            )
-        )
+        server.run(transport=cast(Literal["stdio", "http", "sse", "streamable-http"], transport))
 
 
 @cli.command("web", help="Run the Skill Vault web dashboard.")
@@ -287,8 +281,7 @@ def web_command(host: str | None, port: int | None, db_path: str | None) -> None
     services = build_services(service_settings)
     public_host = "<your-host-or-ip>" if resolved_host == "0.0.0.0" else resolved_host
     console.print(
-        f"[green]Starting web dashboard:[/green] "
-        f"http://{public_host}:{resolved_port}/dashboard"
+        f"[green]Starting web dashboard:[/green] http://{public_host}:{resolved_port}/dashboard"
     )
     uvicorn.run(create_app(services=services), host=resolved_host, port=resolved_port)
 
