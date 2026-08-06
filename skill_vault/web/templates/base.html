@@ -10,11 +10,20 @@
   <body>
     <header class="page-header">
       <div class="container">
-        <h1><a href="/dashboard">Skill Vault</a></h1>
+        <h1><a href="/">Skill Vault</a></h1>
         <nav>
-          <a href="/dashboard">Dashboard</a>
           <a href="/browse">Global browse</a>
+          {% if request.state.user %}
+          <a href="/dashboard">Dashboard</a>
           <a href="/dashboard/onboard">Onboard agent</a>
+          <span class="muted">{{ request.state.user["email"] }}</span>
+          <form method="post" action="/logout" class="inline">
+            <button type="submit">Logout</button>
+          </form>
+          {% else %}
+          <a href="/login">Login</a>
+          <a href="/signup">Sign up</a>
+          {% endif %}
         </nav>
       </div>
     </header>

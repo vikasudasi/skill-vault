@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 
 from skill_vault.bootstrap import Services, build_services
 from skill_vault.config import get_settings
@@ -26,6 +29,14 @@ def create_app(services: Services | None = None, admin: AdminAuth | None = None)
     app.state.services = services
     app.state.admin_auth = admin
     app.state.templates = templates
+    app.state.session_cookie = "sv_session"
+    app.state.session_cookie_secure = _env_bool("SKILL_VAULT_SESSION_COOKIE_SECURE", default=False)
+    services.auth.upsert_superuser(settings.admin_username, settings.admin_password)
+
+    @app.middleware("http")
+    async def init_request_user(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request.state.user = None
+        return await call_next(request)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -34,3 +45,10 @@ def create_app(services: Services | None = None, admin: AdminAuth | None = None)
     app.include_router(router)
 
     return app
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}

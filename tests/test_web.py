@@ -41,6 +41,29 @@ def _client(tmp_path: Path) -> tuple[TestClient, Services]:
     return TestClient(app), services
 
 
+def _authed_client(
+    tmp_path: Path,
+    email: str = "engineer@skillvault.dev",
+    password: str = "password123",
+    *,
+    superuser: bool = True,
+) -> tuple[TestClient, Services]:
+    """Return a client logged in via the session-cookie auth flow.
+
+    Creates a user through AuthService (so we control the superuser flag directly),
+    then logs them in through the real POST /login route so the client carries the
+    httpOnly session cookie that the dashboard routes require.
+    """
+    client, services = _client(tmp_path)
+    services.auth.create_user(email, password, superuser=1 if superuser else 0)
+    login = client.post(
+        "/login", data={"email": email, "password": password}, follow_redirects=False
+    )
+    assert login.status_code == 302, login.text
+    assert "sv_session" in client.cookies
+    return client, services
+
+
 def _skill(name: str, body: str = "sample body", description: str | None = None) -> SkillInput:
     return SkillInput(
         name=name,
@@ -118,20 +141,20 @@ def test_homepage_replaces_wildcard_host(monkeypatch, tmp_path: Path) -> None:
         get_settings.cache_clear()
 
 
-def test_dashboard_requires_admin_auth(tmp_path: Path) -> None:
+def test_dashboard_requires_login(tmp_path: Path) -> None:
     client, _ = _client(tmp_path)
-    unauthenticated = client.get("/dashboard")
-    assert unauthenticated.status_code == 401
-    authenticated = client.get("/dashboard", auth=("t", "t"))
-    assert authenticated.status_code == 200
+    unauthenticated = client.get("/dashboard", follow_redirects=False)
+    assert unauthenticated.status_code == 302
+    assert unauthenticated.headers["location"].startswith("/login")
+    authed, _ = _authed_client(tmp_path)
+    assert authed.get("/dashboard").status_code == 200
 
 
 def test_onboard_shows_key_once(tmp_path: Path) -> None:
-    client, _ = _client(tmp_path)
+    client, _ = _authed_client(tmp_path)
     response = client.post(
         "/dashboard/onboard",
         data={"name": "agent-one"},
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert response.status_code == 200
@@ -140,16 +163,16 @@ def test_onboard_shows_key_once(tmp_path: Path) -> None:
 
 
 def test_admin_publish_visible_in_agent_dashboard(tmp_path: Path) -> None:
-    client, services = _client(tmp_path)
+    client, services = _authed_client(tmp_path)
     agent_id = services.auth.create_agent("owner")
     services.registry.admin_publish(agent_id, _skill("Planner"), "personal")
-    page = client.get(f"/agents/{agent_id}", auth=("t", "t"))
+    page = client.get(f"/agents/{agent_id}")
     assert page.status_code == 200
     assert "Planner" in page.text
 
 
 def test_skill_publish_update_delete_forms(tmp_path: Path) -> None:
-    client, services = _client(tmp_path)
+    client, services = _authed_client(tmp_path)
     agent_id = services.auth.create_agent("agent-a")
     publish = client.post(
         f"/agents/{agent_id}/skills",
@@ -161,7 +184,6 @@ def test_skill_publish_update_delete_forms(tmp_path: Path) -> None:
             "body": "initial body",
             "visibility": "personal",
         },
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert publish.status_code == 303
@@ -178,20 +200,18 @@ def test_skill_publish_update_delete_forms(tmp_path: Path) -> None:
             "triggers": "release",
             "body": "updated body",
         },
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert edit.status_code == 303
-    updated_page = client.get(f"/agents/{agent_id}", auth=("t", "t"))
+    updated_page = client.get(f"/agents/{agent_id}")
     assert "Skill One Updated" in updated_page.text
 
     delete = client.post(
         f"/agents/{agent_id}/skills/{skill_id}/delete",
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert delete.status_code == 303
-    final_page = client.get(f"/agents/{agent_id}", auth=("t", "t"))
+    final_page = client.get(f"/agents/{agent_id}")
     assert "Skill One Updated" not in final_page.text
 
 
@@ -222,16 +242,15 @@ def test_skill_detail_shows_metadata_without_body(tmp_path: Path) -> None:
 
 
 def test_key_management_rotate_and_revoke(tmp_path: Path) -> None:
-    client, services = _client(tmp_path)
+    client, services = _authed_client(tmp_path)
     onboard = services.auth.onboard("key-agent")
 
-    page = client.get(f"/agents/{onboard.agent_id}", auth=("t", "t"))
+    page = client.get(f"/agents/{onboard.agent_id}")
     assert page.status_code == 200
     assert onboard.key_prefix in page.text
 
     rotate = client.post(
         f"/agents/{onboard.agent_id}/keys/{onboard.key_id}/rotate",
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert rotate.status_code == 200
@@ -247,10 +266,121 @@ def test_key_management_rotate_and_revoke(tmp_path: Path) -> None:
 
     revoke = client.post(
         f"/agents/{onboard.agent_id}/keys/{active_key.key_id}/revoke",
-        auth=("t", "t"),
         follow_redirects=False,
     )
     assert revoke.status_code == 303
     keys_after_revoke = services.auth.list_keys(onboard.agent_id)
     revoked = next(k for k in keys_after_revoke if k.key_id == active_key.key_id)
     assert revoked.revoked_at is not None
+
+
+# -- user signup / login / logout / ownership scoping ------------------------
+
+
+def test_signup_creates_user_and_sets_session(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    resp = client.post(
+        "/signup",
+        data={
+            "email": "New.User@Example.com",
+            "password": "hunter2password",
+            "confirm_password": "hunter2password",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/dashboard"
+    assert "sv_session" in client.cookies
+    row = services.db.execute(
+        "SELECT * FROM users WHERE email = ?", ("new.user@example.com",)
+    ).fetchone()
+    assert row is not None
+    assert row["superuser"] == 0
+    assert "hunter2password" not in row["password_hash"]
+    assert "$" in row["password_hash"]  # pbkdf2 record
+
+
+def test_signup_rejects_invalid_and_duplicate(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    bad = client.post(
+        "/signup",
+        data={"email": "not-an-email", "password": "short", "confirm_password": "short"},
+    )
+    assert bad.status_code == 400
+    assert "valid email" in bad.text.lower()
+
+    services.auth.create_user("dup@example.com", "password123")
+    dup = client.post(
+        "/signup",
+        data={
+            "email": "dup@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+        },
+    )
+    assert dup.status_code == 400
+    assert "already exists" in dup.text.lower()
+
+
+def test_login_success_and_failure(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    services.auth.create_user("login@example.com", "password123")
+    ok = client.post(
+        "/login",
+        data={"email": "login@example.com", "password": "password123"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 302
+    assert ok.headers["location"] == "/dashboard"
+    assert "sv_session" in client.cookies
+
+    bad = client.post("/login", data={"email": "login@example.com", "password": "WRONG"})
+    assert bad.status_code == 401
+    assert "Invalid email or password" in bad.text
+
+
+def test_logout_clears_session(tmp_path: Path) -> None:
+    client, _ = _authed_client(tmp_path)
+    assert client.get("/dashboard").status_code == 200
+    out = client.post("/logout", follow_redirects=False)
+    assert out.status_code == 302
+    assert "sv_session" not in client.cookies
+    assert client.get("/dashboard", follow_redirects=False).status_code == 302
+
+
+def test_user_sees_only_own_agents(tmp_path: Path) -> None:
+    # Owner A has one agent; owner B must not see it.
+    services = _services(tmp_path)
+    app = create_app(
+        services=services,
+        admin=AdminAuth("t", "t", verify=lambda u, p: u == "t" and p == "t"),
+    )
+    client_a, client_b = TestClient(app), TestClient(app)
+    services.auth.create_user("a@example.com", "password123")
+    services.auth.create_user("b@example.com", "password123")
+    a_login = client_a.post(
+        "/login", data={"email": "a@example.com", "password": "password123"}, follow_redirects=False
+    )
+    b_login = client_b.post(
+        "/login", data={"email": "b@example.com", "password": "password123"}, follow_redirects=False
+    )
+    assert a_login.status_code == 302 and b_login.status_code == 302
+
+    a_id = services.db.execute("SELECT id FROM users WHERE email='a@example.com'").fetchone()["id"]
+    b_id = services.db.execute("SELECT id FROM users WHERE email='b@example.com'").fetchone()["id"]
+    agent_a = services.auth.onboard("agent-owner-a", owner_user_id=a_id)
+    agent_b = services.auth.onboard("agent-owner-b", owner_user_id=b_id)
+
+    # A can see own agent, not B's.
+    assert client_a.get(f"/agents/{agent_a.agent_id}").status_code == 200
+    assert client_a.get(f"/agents/{agent_b.agent_id}").status_code == 404
+    # Public read of a global skill is unaffected, but B's private agent is hidden.
+    assert client_a.get("/browse").status_code == 200
+
+
+def test_superuser_sees_all_agents(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path, superuser=True)
+    # ownerless (seed/system) agent
+    nobody = services.auth.create_agent("seed-agent")
+    page = client.get(f"/agents/{nobody}")
+    assert page.status_code == 200

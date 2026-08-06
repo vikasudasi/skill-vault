@@ -11,8 +11,22 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS agents (
     id          TEXT PRIMARY KEY,                    -- UUID v4
     name        TEXT NOT NULL,
+    owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL, -- NULL => seed/system
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agents_owner_user ON agents(owner_user_id);
+
+-- ---------------------------------------------------------------------------
+-- users : dashboard accounts
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,                  -- UUID v4
+    email         TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,                     -- pbkdf2 record
+    superuser     INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 -- ---------------------------------------------------------------------------
@@ -28,6 +42,19 @@ CREATE TABLE IF NOT EXISTS api_keys (
     revoked_at    TEXT                               -- non-null => revoked
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_agent ON api_keys(agent_id);
+
+-- ---------------------------------------------------------------------------
+-- sessions : hash-only browser sessions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sessions (
+    id          TEXT PRIMARY KEY,                    -- UUID v4
+    token       TEXT NOT NULL UNIQUE,                -- sha256 hex of raw session token
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
 -- ---------------------------------------------------------------------------
 -- skills : logical skill; versioned content lives in skill_versions

@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-from typing import NoReturn
+import re
+import sqlite3
+from typing import NoReturn, cast
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from starlette.responses import Response
 
 from skill_vault.bootstrap import Services
 from skill_vault.config import get_settings
 from skill_vault.db import locked
 from skill_vault.errors import SkillVaultError
 from skill_vault.models import SkillCard, SkillInput
-from skill_vault.web.admin import require_admin
+from skill_vault.web.session_auth import require_user
 
 router = APIRouter()
 _PAGE_SIZE = 10
+_MIN_PASSWORD_LENGTH = 8
+_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -55,26 +59,35 @@ def configure(request: Request) -> Response:
 @router.get(
     "/dashboard",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def dashboard_home(request: Request) -> Response:
     services = _services(request)
+    user = _current_user(request)
+    is_superuser = bool(user["superuser"])
     templates = _templates(request)
     with locked():
-        agents = services.db.execute(
-            "SELECT id, name, created_at FROM agents ORDER BY created_at DESC"
-        ).fetchall()
+        if is_superuser:
+            agents = services.db.execute(
+                "SELECT id, name, created_at FROM agents ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            agents = services.db.execute(
+                "SELECT id, name, created_at FROM agents WHERE owner_user_id = ? "
+                "ORDER BY created_at DESC",
+                (str(user["id"]),),
+            ).fetchall()
     return templates.TemplateResponse(
         request,
         "agents_overview.html",
-        {"agents": agents},
+        {"agents": agents, "is_superuser": is_superuser},
     )
 
 
 @router.get(
     "/dashboard/onboard",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def onboard_form(request: Request) -> Response:
     return _templates(request).TemplateResponse(request, "onboard.html")
@@ -83,13 +96,14 @@ def onboard_form(request: Request) -> Response:
 @router.post(
     "/dashboard/onboard",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def onboard_submit(request: Request, name: str = Form(...)) -> Response:
     services = _services(request)
+    user = _current_user(request)
     try:
         with locked():
-            result = services.auth.onboard(name)
+            result = services.auth.onboard(name, owner_user_id=str(user["id"]))
     except SkillVaultError as exc:
         _raise_http(exc)
     return _templates(request).TemplateResponse(
@@ -108,7 +122,7 @@ def onboard_submit(request: Request, name: str = Form(...)) -> Response:
 @router.get(
     "/agents/{agent_id}",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def agent_dashboard(
     request: Request,
@@ -118,6 +132,7 @@ def agent_dashboard(
     page: int = Query(default=1),
 ) -> Response:
     services = _services(request)
+    user = _current_user(request)
     templates = _templates(request)
     current_page = _normalize_page(page)
     query = q.strip()
@@ -125,10 +140,7 @@ def agent_dashboard(
 
     try:
         with locked():
-            agent_row = services.db.execute(
-                "SELECT id, name FROM agents WHERE id = ?",
-                (agent_id,),
-            ).fetchone()
+            agent_row = _owned_agent_row(services, user, agent_id)
             if agent_row is None:
                 raise HTTPException(status_code=404, detail="Agent not found")
             personal_skills = services.registry.admin_list_my(agent_id)
@@ -159,9 +171,10 @@ def agent_dashboard(
 @router.get(
     "/agents/{agent_id}/skills/new",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def new_skill_form(request: Request, agent_id: str) -> Response:
+    _assert_agent_access(request, agent_id)
     return _templates(request).TemplateResponse(
         request,
         "skill_form.html",
@@ -181,7 +194,7 @@ def new_skill_form(request: Request, agent_id: str) -> Response:
 
 @router.post(
     "/agents/{agent_id}/skills",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def publish_skill(
     request: Request,
@@ -194,6 +207,7 @@ def publish_skill(
     visibility: str = Form(...),
 ) -> RedirectResponse:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     skill = _skill_input(name, description, tags, triggers, body)
     try:
         with locked():
@@ -206,10 +220,11 @@ def publish_skill(
 @router.get(
     "/agents/{agent_id}/skills/{skill_id}/edit",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def edit_skill_form(request: Request, agent_id: str, skill_id: str) -> Response:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     try:
         with locked():
             detail = services.registry.admin_get(agent_id=agent_id, identifier=skill_id)
@@ -235,7 +250,7 @@ def edit_skill_form(request: Request, agent_id: str, skill_id: str) -> Response:
 
 @router.post(
     "/agents/{agent_id}/skills/{skill_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def update_skill(
     request: Request,
@@ -248,6 +263,7 @@ def update_skill(
     body: str = Form(...),
 ) -> RedirectResponse:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     skill = _skill_input(name, description, tags, triggers, body)
     try:
         with locked():
@@ -259,10 +275,11 @@ def update_skill(
 
 @router.post(
     "/agents/{agent_id}/skills/{skill_id}/delete",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def delete_skill(request: Request, agent_id: str, skill_id: str) -> RedirectResponse:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     try:
         with locked():
             services.registry.admin_delete(agent_id=agent_id, identifier=skill_id)
@@ -274,10 +291,11 @@ def delete_skill(request: Request, agent_id: str, skill_id: str) -> RedirectResp
 @router.post(
     "/agents/{agent_id}/keys/{key_id}/rotate",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def rotate_key(request: Request, agent_id: str, key_id: str) -> Response:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     try:
         with locked():
             issued = services.auth.rotate_key(agent_id=agent_id, key_id=key_id)
@@ -298,10 +316,11 @@ def rotate_key(request: Request, agent_id: str, key_id: str) -> Response:
 
 @router.post(
     "/agents/{agent_id}/keys/{key_id}/revoke",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_user)],
 )
 def revoke_key(request: Request, agent_id: str, key_id: str) -> RedirectResponse:
     services = _services(request)
+    _assert_agent_access(request, agent_id)
     try:
         with locked():
             services.auth.revoke_key(agent_id=agent_id, key_id=key_id)
@@ -336,6 +355,94 @@ def browse(
             "skills": cards,
         },
     )
+
+
+@router.get("/signup", response_class=HTMLResponse)
+def signup_form(request: Request) -> Response:
+    return _templates(request).TemplateResponse(
+        request,
+        "signup.html",
+        {"error": None, "email": ""},
+    )
+
+
+@router.post("/signup")
+def signup_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+) -> Response:
+    templates = _templates(request)
+    normalized_email = email.strip().lower()
+    error = _signup_error(normalized_email, password, confirm_password)
+    if error:
+        return templates.TemplateResponse(
+            request,
+            "signup.html",
+            {"error": error, "email": normalized_email},
+            status_code=400,
+        )
+
+    services = _services(request)
+    try:
+        user_id = services.auth.create_user(normalized_email, password, superuser=0)
+        token = services.auth.create_session(user_id)
+    except SkillVaultError as exc:
+        return templates.TemplateResponse(
+            request,
+            "signup.html",
+            {"error": exc.message, "email": normalized_email},
+            status_code=400,
+        )
+
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    _set_session_cookie(request, response, token)
+    return response
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login_form(request: Request) -> Response:
+    return _templates(request).TemplateResponse(
+        request,
+        "login.html",
+        {"error": None, "email": ""},
+    )
+
+
+@router.post("/login")
+def login_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+) -> Response:
+    templates = _templates(request)
+    normalized_email = email.strip().lower()
+    services = _services(request)
+    try:
+        user = services.auth.verify_credentials(normalized_email, password)
+        token = services.auth.create_session(str(user["id"]))
+    except SkillVaultError:
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": "Invalid email or password.", "email": normalized_email},
+            status_code=401,
+        )
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    _set_session_cookie(request, response, token)
+    return response
+
+
+@router.post("/logout")
+def logout_submit(request: Request) -> RedirectResponse:
+    services = _services(request)
+    cookie_name = _session_cookie_name(request)
+    token = request.cookies.get(cookie_name)
+    services.auth.delete_session(token)
+    response = RedirectResponse(url="/", status_code=302)
+    _clear_session_cookie(request, response)
+    return response
 
 
 @router.get("/skills/{skill_id}", response_class=HTMLResponse)
@@ -460,3 +567,75 @@ def _raise_http(exc: SkillVaultError) -> NoReturn:
         status_code=exc.http_status,
         detail=f"{exc.code}: {exc.message}",
     ) from exc
+
+
+def _signup_error(email: str, password: str, confirm_password: str) -> str | None:
+    if not _EMAIL_PATTERN.match(email):
+        return "Enter a valid email address."
+    if len(password) < _MIN_PASSWORD_LENGTH:
+        return "Password must be at least 8 characters."
+    if password != confirm_password:
+        return "Password confirmation does not match."
+    return None
+
+
+def _current_user(request: Request) -> sqlite3.Row:
+    user = getattr(request.state, "user", None)
+    if user is None or not isinstance(user, sqlite3.Row):
+        raise HTTPException(status_code=302, headers={"Location": "/login"})
+    return user
+
+
+def _owned_agent_row(services: Services, user: sqlite3.Row, agent_id: str) -> sqlite3.Row | None:
+    if bool(user["superuser"]):
+        return cast(
+            sqlite3.Row | None,
+            services.db.execute(
+                "SELECT id, name FROM agents WHERE id = ?",
+                (agent_id,),
+            ).fetchone(),
+        )
+    return cast(
+        sqlite3.Row | None,
+        services.db.execute(
+            "SELECT id, name FROM agents WHERE id = ? AND owner_user_id = ?",
+            (agent_id, str(user["id"])),
+        ).fetchone(),
+    )
+
+
+def _assert_agent_access(request: Request, agent_id: str) -> None:
+    services = _services(request)
+    user = _current_user(request)
+    with locked():
+        row = _owned_agent_row(services, user, agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+
+def _session_cookie_name(request: Request) -> str:
+    return str(getattr(request.app.state, "session_cookie", "sv_session"))
+
+
+def _set_session_cookie(request: Request, response: Response, token: str) -> None:
+    secure_cookie = bool(getattr(request.app.state, "session_cookie_secure", False))
+    response.set_cookie(
+        key=_session_cookie_name(request),
+        value=token,
+        max_age=_SESSION_MAX_AGE_SECONDS,
+        path="/",
+        secure=secure_cookie,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def _clear_session_cookie(request: Request, response: Response) -> None:
+    secure_cookie = bool(getattr(request.app.state, "session_cookie_secure", False))
+    response.delete_cookie(
+        key=_session_cookie_name(request),
+        path="/",
+        secure=secure_cookie,
+        httponly=True,
+        samesite="lax",
+    )
