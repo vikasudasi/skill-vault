@@ -39,5 +39,16 @@ def get_settings() -> Settings:
         pgvector_dsn=os.getenv("SKILL_VAULT_PGVECTOR_DSN") or None,
         rate_limit_per_minute=int(os.getenv("SKILL_VAULT_RATE_LIMIT_PER_MINUTE", "60")),
         admin_username=os.getenv("SKILL_VAULT_ADMIN_USERNAME", "admin"),
-        admin_password=os.getenv("SKILL_VAULT_ADMIN_PASSWORD", "skillvault"),
+        admin_password=_require(
+            "SKILL_VAULT_ADMIN_PASSWORD",
+            "Set a strong SKILL_VAULT_ADMIN_PASSWORD (e.g. in .env) before starting the Skill Vault dashboard.",
+        ),
     )
+
+
+def _require(name: str, hint: str) -> str:
+    """Fail loudly on missing required secrets instead of silently using a weak default."""
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Required env var {name!r} is not set. {hint}")
+    return value

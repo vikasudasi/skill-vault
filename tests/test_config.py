@@ -25,6 +25,7 @@ def test_defaults(monkeypatch):
         "SKILL_VAULT_ADMIN_PASSWORD",
     ):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("SKILL_VAULT_ADMIN_PASSWORD", "a-strong-secret")
     get_settings.cache_clear()
     try:
         s = get_settings()
@@ -35,9 +36,22 @@ def test_defaults(monkeypatch):
         assert s.web_port == 8080
         assert s.rate_limit_per_minute == 60
         assert s.admin_username == "admin"
-        assert s.admin_password == "skillvault"
+        assert s.admin_password == "a-strong-secret"
         assert s.curator_key is None
         assert s.pgvector_dsn is None
+    finally:
+        get_settings.cache_clear()
+
+
+def test_admin_password_required(monkeypatch):
+    # admin password has NO default anymore — a missing secret must fail loudly
+    monkeypatch.delenv("SKILL_VAULT_ADMIN_PASSWORD", raising=False)
+    get_settings.cache_clear()
+    try:
+        import pytest
+
+        with pytest.raises(RuntimeError):
+            get_settings()
     finally:
         get_settings.cache_clear()
 

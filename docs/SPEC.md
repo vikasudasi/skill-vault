@@ -309,7 +309,7 @@ needed; consumers call this (or read `trust` on get) to validate before executin
 | `SKILL_VAULT_CURATOR_KEY` | *(unset)* | ed25519 private key (base64) for signing (Trust task) |
 | `SKILL_VAULT_WEB_HOST` / `_PORT` | `0.0.0.0` / `8000` | uvicorn bind |
 | `SKILL_VAULT_ADMIN_USERNAME` | `admin` | dashboard basic-auth username (set securely in production) |
-| `SKILL_VAULT_ADMIN_PASSWORD` | `skillvault` | dashboard basic-auth password (set securely in production) |
+| `SKILL_VAULT_ADMIN_PASSWORD` | *(required — no default)* | dashboard superuser password (set securely in production via `.env`) |
 | `SKILL_VAULT_SEED_DIR` | `./skill_vault/data/skills` | curated seed library (Seed task) |
 
 ## 9. CLI

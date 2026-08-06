@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Load secrets (admin password etc.) from a gitignored .env if present.
+# Keep secrets OUT of this committed script — only the untracked .env holds values.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 RUN_DIR="${RUN_DIR:-run}"
 mkdir -p "${RUN_DIR}"
 

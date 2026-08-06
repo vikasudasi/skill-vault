@@ -131,8 +131,8 @@ Override with env vars:
 | `SKILL_VAULT_SEED_DIR` | `./skill_vault/data/skills` | Filesystem seed skills directory. |
 | `SKILL_VAULT_PGVECTOR_DSN` | unset | Postgres DSN for `pgvector` backend. |
 | `SKILL_VAULT_RATE_LIMIT_PER_MINUTE` | `60` | Per-key request ceiling for public endpoint. |
-| `SKILL_VAULT_ADMIN_USERNAME` | `admin` | Dashboard HTTP Basic username. |
-| `SKILL_VAULT_ADMIN_PASSWORD` | `skillvault` | Dashboard HTTP Basic password. |
+| `SKILL_VAULT_ADMIN_USERNAME` | `admin` | Dashboard superuser username. |
+| `SKILL_VAULT_ADMIN_PASSWORD` | *(required — no default)* | Dashboard superuser password. Must be set (e.g. via `.env`); startup fails loudly if missing. |
 
 ## TLS and reverse proxy notes
 

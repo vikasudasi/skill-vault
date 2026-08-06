@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from pathlib import Path
 
@@ -10,6 +11,12 @@ import pytest
 
 from skill_vault.db import connect, run_migrations
 from skill_vault.search import VectorStore
+
+# The admin password is now a required secret (config.py raises without it).
+# Provide a known test value now so every test that reaches get_settings()
+# (or create_app -> build_services) runs without a real secret. Tests that
+# specifically cover config override it via monkeypatch + cache_clear.
+os.environ.setdefault("SKILL_VAULT_ADMIN_PASSWORD", "test-admin-password")
 
 MIGRATIONS_DIR = str(Path(__file__).resolve().parent.parent / "migrations")
 
