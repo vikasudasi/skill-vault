@@ -505,7 +505,7 @@ def _skill_visibility(services: Services, skill_id: str) -> str:
     if row is None:
         return "personal"
     visibility = str(row["visibility"])
-    return visibility if visibility in {"global", "personal"} else "personal"
+    return visibility if visibility in {"global", "team", "personal"} else "personal"
 
 
 def _comma_list(raw: str) -> list[str]:

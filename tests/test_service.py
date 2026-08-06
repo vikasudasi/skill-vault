@@ -16,7 +16,7 @@ from conftest import FakeEmbedder
 from skill_vault.auth import AuthService
 from skill_vault.bootstrap import Services
 from skill_vault.db import connect, run_migrations
-from skill_vault.errors import AuthenticationError, ForbiddenError, NotFoundError
+from skill_vault.errors import AuthenticationError, ForbiddenError, InvalidSkillError, NotFoundError
 from skill_vault.models import SkillInput
 from skill_vault.search import SearchService, SqliteVecStore
 from skill_vault.server import create_server
@@ -88,6 +88,59 @@ def test_global_visible_to_guest(tmp_path):
     assert reg.get(identifier=res.id, agent_key=None).trust == "public"
     hits = reg.search(query="docker deploy", scope="global", agent_key=None)
     assert any(c.id == res.id for c in hits)
+
+
+def test_team_publish_requires_user_owned_agent(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    with pytest.raises(InvalidSkillError):
+        reg.publish(skill=_skill(), visibility="team", agent_key=a.raw_key)
+
+
+def test_team_scope_visibility_same_user_only(tmp_path):
+    _, auth, reg = _services(tmp_path)
+    user_a = auth.create_user("team-a@example.com", "password123")
+    user_b = auth.create_user("team-b@example.com", "password123")
+    agent_a = auth.onboard("team-owner", owner_user_id=user_a)
+    agent_same_user = auth.onboard("team-peer", owner_user_id=user_a)
+    agent_other_user = auth.onboard("team-other", owner_user_id=user_b)
+
+    shared = reg.publish(skill=_skill(), visibility="team", agent_key=agent_a.raw_key)
+    reg.publish(skill=_skill(name="global-shared"), visibility="global", agent_key=agent_a.raw_key)
+
+    same_user_hits = reg.search(
+        query="docker deploy", scope="team", agent_key=agent_same_user.raw_key
+    )
+    assert any(card.id == shared.id for card in same_user_hits)
+
+    other_user_hits = reg.search(
+        query="docker deploy", scope="team", agent_key=agent_other_user.raw_key
+    )
+    assert all(card.id != shared.id for card in other_user_hits)
+
+
+def test_team_get_requires_same_user_agent(tmp_path):
+    _, auth, reg = _services(tmp_path)
+    user_a = auth.create_user("get-team-a@example.com", "password123")
+    user_b = auth.create_user("get-team-b@example.com", "password123")
+    owner = auth.onboard("team-owner", owner_user_id=user_a)
+    same_user = auth.onboard("team-peer", owner_user_id=user_a)
+    other_user = auth.onboard("team-outsider", owner_user_id=user_b)
+
+    shared = reg.publish(skill=_skill(), visibility="team", agent_key=owner.raw_key)
+    assert reg.get(identifier=shared.id, agent_key=same_user.raw_key).id == shared.id
+    with pytest.raises(ForbiddenError):
+        reg.get(identifier=shared.id, agent_key=other_user.raw_key)
+    with pytest.raises(AuthenticationError):
+        reg.get(identifier=shared.id, agent_key=None)
+
+
+def test_team_and_all_scope_require_auth(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+    with pytest.raises(AuthenticationError):
+        reg.search(query="docker", scope="team", agent_key=None)
+    with pytest.raises(AuthenticationError):
+        reg.search(query="docker", scope="all", agent_key=None)
 
 
 def test_publish_requires_auth(tmp_path):

@@ -12,7 +12,7 @@ Design (see docs/SPEC.md §6 and ADR-001):
   default, optional pgvector).
 - ``SearchService`` ties the vector index to the SQLite registry: it builds/embeds the
   channel texts, upserts vectors, runs ranked queries, and applies scope filtering
-  (global vs own-personal) at query time.
+  (global vs same-user team vs own-personal) at query time.
 """
 
 from __future__ import annotations
@@ -416,6 +416,7 @@ class SearchService:
         *,
         scope: str = "global",
         owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
         top_k: int = 10,
     ) -> list[tuple[str, float]]:
         """Return ranked ``(version_id, score)`` for ``query`` within ``scope``.
@@ -423,16 +424,19 @@ class SearchService:
         Scope semantics (mirrors SPEC §5):
         - ``global``   -> only curated global skills (no owner required)
         - ``personal`` -> only the ``owner_agent_id``'s private vault (owner required)
-        - ``all``      -> union of global + owner's private (owner required)
+        - ``team``     -> global + same-user team skills (owner user required)
+        - ``all``      -> union of global + owner's private + same-user team
         """
         query = (query or "").strip()
         if not query or top_k <= 0:
             return []
+        if owner_user_id is None and owner_agent_id is not None:
+            owner_user_id = self._agent_owner_user_id(owner_agent_id)
         meta_vec = self._embedder.embed(query)
         body_vec = self._embedder.embed(query)  # same query, scored on both channels
         candidates = self._store.query(meta_vec, body_vec, top_k=max(top_k * 4, 40))
 
-        allowed = self._scope_predicate(scope, owner_agent_id)
+        allowed = self._scope_predicate(scope, owner_agent_id, owner_user_id)
         results: list[tuple[str, float]] = []
         for version_id, score in candidates:
             visibility = self._visibility(version_id)
@@ -447,23 +451,42 @@ class SearchService:
     # -- helpers ------------------------------------------------------------
 
     def _scope_predicate(
-        self, scope: str, owner_agent_id: str | None
+        self, scope: str, owner_agent_id: str | None, owner_user_id: str | None
     ) -> Callable[[str, str], bool]:
         def is_global(_vis: str, _vid: str) -> bool:
             return _vis == "global"
 
-        def is_personal(vis: str, _vid: str) -> bool:
-            return vis == "personal"
+        def is_personal(vis: str, vid: str) -> bool:
+            if vis != "personal" or owner_agent_id is None:
+                return False
+            return self._owner(vid) == owner_agent_id
 
         def is_own(vis: str, vid: str) -> bool:
             if vis == "global":
                 return True
-            return self._owner(vid) == owner_agent_id
+            if vis == "personal":
+                return self._owner(vid) == owner_agent_id
+            if vis == "team":
+                if owner_user_id is None:
+                    return False
+                return self._owner_user_id(vid) == owner_user_id
+            return False
+
+        def is_team(vis: str, vid: str) -> bool:
+            if vis == "global":
+                return True
+            if vis != "team" or owner_user_id is None:
+                return False
+            return self._owner_user_id(vid) == owner_user_id
 
         if scope == "personal":
             if owner_agent_id is None:
                 return lambda _vis, _vid: False  # personal requires an authenticated owner
             return is_personal
+        if scope == "team":
+            if owner_user_id is None:
+                return lambda _vis, _vid: False
+            return is_team
         if scope == "all":
             if owner_agent_id is None:
                 return lambda _vis, _vid: False
@@ -506,6 +529,23 @@ class SearchService:
             (version_id,),
         ).fetchone()
         return row["owner_agent_id"] if row else None
+
+    def _owner_user_id(self, version_id: str) -> str | None:
+        row = self._db.execute(
+            "SELECT a.owner_user_id FROM skill_versions v "
+            "JOIN skills s ON s.id = v.skill_id "
+            "JOIN agents a ON a.id = s.owner_agent_id "
+            "WHERE v.id = ?",
+            (version_id,),
+        ).fetchone()
+        return row["owner_user_id"] if row else None
+
+    def _agent_owner_user_id(self, owner_agent_id: str) -> str | None:
+        row = self._db.execute(
+            "SELECT owner_user_id FROM agents WHERE id = ?",
+            (owner_agent_id,),
+        ).fetchone()
+        return row["owner_user_id"] if row else None
 
 
 # ---------------------------------------------------------------------------

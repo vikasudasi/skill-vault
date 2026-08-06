@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS skills (
     name                TEXT NOT NULL,
     owner_agent_id      TEXT REFERENCES agents(id) ON DELETE SET NULL,  -- NULL => global/seed
     visibility          TEXT NOT NULL DEFAULT 'personal'
-                        CHECK (visibility IN ('global','personal')),
+                        CHECK (visibility IN ('global','personal','team')),
     current_version_id  TEXT REFERENCES skill_versions(id),  -- points to latest released version
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

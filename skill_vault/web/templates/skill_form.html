@@ -19,13 +19,12 @@
     <label for="body">Body</label>
     <textarea id="body" name="body" rows="12" required>{{ skill.body if skill else '' }}</textarea>
 
-    {% if mode == "new" %}
     <fieldset>
       <legend>Visibility</legend>
-      <label><input type="radio" name="visibility" value="personal" {% if visibility == "personal" %}checked{% endif %} /> Personal</label>
-      <label><input type="radio" name="visibility" value="global" {% if visibility == "global" %}checked{% endif %} /> Global</label>
+      <label><input type="radio" name="visibility" value="personal" {% if visibility == "personal" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Personal</label>
+      <label><input type="radio" name="visibility" value="team" {% if visibility == "team" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Team</label>
+      <label><input type="radio" name="visibility" value="global" {% if visibility == "global" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Global</label>
     </fieldset>
-    {% endif %}
 
     <button type="submit">{{ submit_label }}</button>
   </form>

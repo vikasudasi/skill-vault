@@ -6,6 +6,8 @@ SearchService, empty-query handling, and reindex idempotency.
 
 from __future__ import annotations
 
+import uuid
+
 from conftest import FakeEmbedder, insert_agent, insert_skill_version
 
 from skill_vault.search import (
@@ -132,6 +134,120 @@ def test_search_requires_identity_for_personal(db, fake_store, fake_embedder):
     # No identity -> cannot see any personal skills even in 'all' scope.
     results = svc.search("anything", owner_agent_id=None, scope="all")
     assert results == []
+
+
+def test_search_team_scope_same_user_only(db, fake_store, fake_embedder):
+    user_a = str(uuid.uuid4())
+    user_b = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO users(id, email, password_hash, superuser) VALUES (?, ?, ?, 0)",
+        (user_a, "a@example.com", "hash-a"),
+    )
+    db.execute(
+        "INSERT INTO users(id, email, password_hash, superuser) VALUES (?, ?, ?, 0)",
+        (user_b, "b@example.com", "hash-b"),
+    )
+
+    owner = insert_agent(db, "owner")
+    teammate = insert_agent(db, "teammate")
+    outsider = insert_agent(db, "outsider")
+    ownerless = insert_agent(db, "seed")
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_a, owner))
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_a, teammate))
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_b, outsider))
+    db.commit()
+
+    _, team_version = insert_skill_version(
+        db,
+        name="team-shared",
+        description="shared with same user",
+        visibility="team",
+        owner_agent_id=owner,
+    )
+    _, global_version = insert_skill_version(
+        db,
+        name="global",
+        description="visible to all scopes that include global",
+    )
+    svc = _svc(db, fake_store, fake_embedder)
+    svc.reindex_all()
+
+    same_user = svc.search(
+        "anything",
+        owner_agent_id=teammate,
+        owner_user_id=user_a,
+        scope="team",
+    )
+    assert {vid for vid, _ in same_user} == {team_version, global_version}
+
+    other_user = svc.search(
+        "anything",
+        owner_agent_id=outsider,
+        owner_user_id=user_b,
+        scope="team",
+    )
+    assert {vid for vid, _ in other_user} == {global_version}
+
+    ownerless_results = svc.search(
+        "anything",
+        owner_agent_id=ownerless,
+        owner_user_id=None,
+        scope="team",
+    )
+    assert ownerless_results == []
+
+
+def test_search_all_includes_same_user_team(db, fake_store, fake_embedder):
+    user_a = str(uuid.uuid4())
+    user_b = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO users(id, email, password_hash, superuser) VALUES (?, ?, ?, 0)",
+        (user_a, "all-a@example.com", "hash-a"),
+    )
+    db.execute(
+        "INSERT INTO users(id, email, password_hash, superuser) VALUES (?, ?, ?, 0)",
+        (user_b, "all-b@example.com", "hash-b"),
+    )
+
+    owner = insert_agent(db, "owner")
+    same_user_other_agent = insert_agent(db, "owner-peer")
+    outsider = insert_agent(db, "outsider")
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_a, owner))
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_a, same_user_other_agent))
+    db.execute("UPDATE agents SET owner_user_id = ? WHERE id = ?", (user_b, outsider))
+    db.commit()
+
+    _, own_personal = insert_skill_version(
+        db,
+        name="own-personal",
+        description="owner private",
+        visibility="personal",
+        owner_agent_id=owner,
+    )
+    _, same_user_team = insert_skill_version(
+        db,
+        name="same-user-team",
+        description="team shared",
+        visibility="team",
+        owner_agent_id=same_user_other_agent,
+    )
+    _, other_user_team = insert_skill_version(
+        db,
+        name="other-user-team",
+        description="should be hidden",
+        visibility="team",
+        owner_agent_id=outsider,
+    )
+    _, global_version = insert_skill_version(db, name="global", description="g")
+
+    svc = _svc(db, fake_store, fake_embedder)
+    svc.reindex_all()
+    results = svc.search("anything", owner_agent_id=owner, owner_user_id=user_a, scope="all")
+    ids = {vid for vid, _ in results}
+    assert own_personal in ids
+    assert same_user_team in ids
+    assert global_version in ids
+    assert other_user_team not in ids
 
 
 def test_empty_query_returns_empty(db, fake_store, fake_embedder):

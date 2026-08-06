@@ -2,7 +2,8 @@
 
 Wires the data model + semantic search + auth + trust layer together so the MCP
 tools (``tools.py``) stay thin. Every method enforces auth scope (global visible
-to all; personal only to the owning agent) and applies content-integrity /
+to all; team visible to same-user agents; personal only to the owning agent) and applies
+content-integrity /
 trust-policy checks on the read path.
 """
 
@@ -73,11 +74,18 @@ class RegistryService:
         min_trust: str | None = None,
         agent_key: str | None = None,
     ) -> list[SkillCard]:
-        ctx = self._ctx(agent_key)
-        if scope == "personal":
+        ctx = (
             self._require_auth(agent_key)
+            if scope in {"personal", "team", "all"}
+            else self._ctx(agent_key)
+        )
+        owner_user_id = self._agent_owner_user_id(ctx.agent_id)
         matches = self._search.search(
-            query=query, scope=scope, owner_agent_id=ctx.agent_id, top_k=limit
+            query=query,
+            scope=scope,
+            owner_agent_id=ctx.agent_id,
+            owner_user_id=owner_user_id,
+            top_k=limit,
         )
         cards: list[SkillCard] = []
         for version_id, score in matches:
@@ -187,10 +195,12 @@ class RegistryService:
 
     def _publish(self, ctx: AgentContext, skill: SkillInput, visibility: str) -> PublishResult:
         with locked():
-            if visibility not in ("global", "personal"):
+            if visibility not in ("global", "personal", "team"):
                 raise InvalidSkillError(
-                    f"visibility must be 'global' or 'personal', got {visibility!r}"
+                    f"visibility must be 'global', 'personal', or 'team', got {visibility!r}"
                 )
+            if visibility == "team" and self._agent_owner_user_id(ctx.agent_id) is None:
+                raise InvalidSkillError("team visibility requires an agent owned by a user")
             if not skill.name.strip():
                 raise InvalidSkillError("skill name is required")
             if not skill.body.strip():
@@ -326,6 +336,13 @@ class RegistryService:
                 raise AuthenticationError("authentication required for personal skills")
             if row["owner_agent_id"] != ctx.agent_id:
                 raise ForbiddenError("this personal skill belongs to another agent")
+        if row["visibility"] == "team":
+            if ctx.agent_id is None:
+                raise AuthenticationError("authentication required for team skills")
+            viewer_user_id = self._agent_owner_user_id(ctx.agent_id)
+            owner_user_id = self._agent_owner_user_id(row["owner_agent_id"])
+            if owner_user_id is None or viewer_user_id is None or owner_user_id != viewer_user_id:
+                raise ForbiddenError("this team skill belongs to another user")
 
     def _card_from_row(self, row: Any) -> SkillCard:
         return SkillCard(
@@ -380,6 +397,15 @@ class RegistryService:
             (version_id,),
         ).fetchone()
         return row if row is not None else None
+
+    def _agent_owner_user_id(self, agent_id: str | None) -> str | None:
+        if agent_id is None:
+            return None
+        row = self._db.execute(
+            "SELECT owner_user_id FROM agents WHERE id = ?",
+            (agent_id,),
+        ).fetchone()
+        return str(row["owner_user_id"]) if row and row["owner_user_id"] is not None else None
 
     def _resolve_version(self, identifier: str, version: int | None) -> Any:
         """Resolve ``identifier`` as a skill id (current or requested version) or version_id."""

@@ -47,7 +47,7 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
         with locked(), _translate_errors():
             return registry.get(identifier=id, version=version, agent_key=agent_key)
 
-    @server.tool(description="Publish a new skill to your vault (global or personal).")
+    @server.tool(description="Publish a new skill to your vault (global, team, or personal).")
     def publish_skill(
         skill: SkillInput, visibility: str = "personal", agent_key: str | None = None
     ) -> PublishResult:

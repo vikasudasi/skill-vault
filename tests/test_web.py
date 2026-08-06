@@ -215,6 +215,24 @@ def test_skill_publish_update_delete_forms(tmp_path: Path) -> None:
     assert "Skill One Updated" not in final_page.text
 
 
+def test_new_skill_form_and_edit_preserve_team_visibility(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path)
+    user_id = services.db.execute(
+        "SELECT id FROM users WHERE email = ?",
+        ("engineer@skillvault.dev",),
+    ).fetchone()["id"]
+    onboarded = services.auth.onboard("team-owner", owner_user_id=str(user_id))
+
+    form_page = client.get(f"/agents/{onboarded.agent_id}/skills/new")
+    assert form_page.status_code == 200
+    assert 'value="team"' in form_page.text
+
+    published = services.registry.admin_publish(onboarded.agent_id, _skill("Team Skill"), "team")
+    edit_page = client.get(f"/agents/{onboarded.agent_id}/skills/{published.id}/edit")
+    assert edit_page.status_code == 200
+    assert 'value="team" checked' in edit_page.text
+
+
 def test_global_browse_shows_results_and_badge(tmp_path: Path) -> None:
     client, services = _client(tmp_path)
     agent_id = services.auth.create_agent("publisher")
