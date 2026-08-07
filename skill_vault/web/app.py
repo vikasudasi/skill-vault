@@ -21,7 +21,16 @@ _md = MarkdownIt("commonmark", {"html": False}).enable("table")
 
 
 def create_app(services: Services | None = None, admin: AdminAuth | None = None) -> FastAPI:
-    app = FastAPI(title="Skill Vault")
+    app = FastAPI(
+        title="Skill Vault",
+        # The dashboard is human-facing HTML form pages; agents use the MCP
+        # endpoint (:8100/mcp) served by the separate MCP server. Disable the
+        # auto-generated Swagger/ReDoc/OpenAPI docs to avoid exposing the
+        # dashboard's route inventory publicly.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     services = services or build_services()
     settings = get_settings()
     admin = admin or AdminAuth(settings.admin_username, settings.admin_password)
