@@ -84,10 +84,23 @@ def test_scope_isolation_personal(tmp_path):
 
 def test_global_visible_to_guest(tmp_path):
     _, _, reg, a = _merged(tmp_path)
-    res = reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+    res = reg.admin_publish(a.agent_id, _skill(), visibility="global")
     assert reg.get(identifier=res.id, agent_key=None).trust == "public"
     hits = reg.search(query="docker deploy", scope="global", agent_key=None)
     assert any(c.id == res.id for c in hits)
+
+
+def test_agent_cannot_publish_global(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    with pytest.raises(ForbiddenError):
+        reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+
+
+def test_agent_cannot_update_global(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    res = reg.admin_publish(a.agent_id, _skill(), visibility="global")
+    with pytest.raises(ForbiddenError):
+        reg.update(identifier=res.id, skill=_skill(body="# docker\nv2"), agent_key=a.raw_key)
 
 
 def test_team_publish_requires_user_owned_agent(tmp_path):
@@ -105,7 +118,7 @@ def test_team_scope_visibility_same_user_only(tmp_path):
     agent_other_user = auth.onboard("team-other", owner_user_id=user_b)
 
     shared = reg.publish(skill=_skill(), visibility="team", agent_key=agent_a.raw_key)
-    reg.publish(skill=_skill(name="global-shared"), visibility="global", agent_key=agent_a.raw_key)
+    reg.admin_publish(agent_a.agent_id, _skill(name="global-shared"), visibility="global")
 
     same_user_hits = reg.search(
         query="docker deploy", scope="team", agent_key=agent_same_user.raw_key
@@ -136,7 +149,7 @@ def test_team_get_requires_same_user_agent(tmp_path):
 
 def test_team_and_all_scope_require_auth(tmp_path):
     _, _, reg, a = _merged(tmp_path)
-    reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+    reg.admin_publish(a.agent_id, _skill(), visibility="global")
     with pytest.raises(AuthenticationError):
         reg.search(query="docker", scope="team", agent_key=None)
     with pytest.raises(AuthenticationError):
@@ -187,7 +200,7 @@ def test_cannot_update_or_delete_others_personal(tmp_path):
 def test_list_my_and_list_global(tmp_path):
     _, _, reg, a = _merged(tmp_path)
     reg.publish(skill=_skill(name="one"), visibility="personal", agent_key=a.raw_key)
-    reg.publish(skill=_skill(name="two"), visibility="global", agent_key=a.raw_key)
+    reg.admin_publish(a.agent_id, _skill(name="two"), visibility="global")
     mine = reg.list_my(agent_key=a.raw_key)
     assert {c.name for c in mine} == {"one", "two"}  # own personal + own global
     globals_ = reg.list_global()

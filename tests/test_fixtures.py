@@ -181,8 +181,9 @@ def test_signed_skill_resolves_as_verified_via_registry(tmp_path) -> None:
     services = build_preseeded_services(tmp_path, signed=True)
     # find the seed-owner agent and verify its tier resolution works with the fixture
     onboard = services.auth.onboard("verifier")
-    res = services.registry.publish(
-        skill=SkillInput(
+    res = services.registry.admin_publish(
+        onboard.agent_id,
+        SkillInput(
             name=fixture["name"],
             description=fixture["description"],
             tags=fixture["tags"],
@@ -191,7 +192,6 @@ def test_signed_skill_resolves_as_verified_via_registry(tmp_path) -> None:
             meta=fixture["meta"],
         ),
         visibility="global",
-        agent_key=onboard.raw_key,
     )
     # published by an agent -> user tier; the *fixture signature* itself is what
     # the curated trust path would verify with the known key (covered above).

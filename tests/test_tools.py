@@ -58,7 +58,9 @@ def stack(tmp_path):
 def test_all_tools_searchable_and_callable(stack, tmp_path):
     server, reg, auth = stack
     onboard = auth.onboard("wally")
-    res = reg.publish(skill=_skill(), visibility="global", agent_key=onboard.raw_key)
+    # global skill is curated by an admin (agents cannot publish global)
+    reg.admin_publish(onboard.agent_id, _skill(name="global-docker"), visibility="global")
+    res = reg.publish(skill=_skill(), visibility="personal", agent_key=onboard.raw_key)
 
     # search_skills
     hits = asyncio.run(
@@ -108,6 +110,23 @@ def test_all_tools_searchable_and_callable(stack, tmp_path):
         server.call_tool("delete_skill", {"id": res.id, "agent_key": onboard.raw_key})
     )
     assert "ok" in str(next(iter(deleted))).lower() or list(deleted)
+
+
+def test_agent_cannot_publish_global_via_tool(stack, tmp_path):
+    server, _, auth = stack
+    onboard = auth.onboard("wally")
+    with pytest.raises(ToolError) as exc:
+        asyncio.run(
+            server.call_tool(
+                "publish_skill",
+                {
+                    "skill": _skill(),
+                    "visibility": "global",
+                    "agent_key": onboard.raw_key,
+                },
+            )
+        )
+    assert "SV_" in str(exc.value)  # SV_FORBIDDEN surfaced through tool surface
 
 
 def test_tool_error_translation_unknown_id(stack):

@@ -143,10 +143,10 @@ class RegistryService:
     # -- publish / update ---------------------------------------------------
 
     def publish(self, skill: SkillInput, visibility: str, agent_key: str | None) -> PublishResult:
-        return self._publish(self._require_auth(agent_key), skill, visibility)
+        return self._publish(self._require_auth(agent_key), skill, visibility, _admin=False)
 
     def admin_publish(self, agent_id: str, skill: SkillInput, visibility: str) -> PublishResult:
-        return self._publish(self._as_agent(agent_id), skill, visibility)
+        return self._publish(self._as_agent(agent_id), skill, visibility, _admin=True)
 
     def admin_publish_seed(
         self,
@@ -193,12 +193,16 @@ class RegistryService:
             self._db.commit()
             return PublishResult(ok=True, id=skill_id, version=1, content_hash=digest)
 
-    def _publish(self, ctx: AgentContext, skill: SkillInput, visibility: str) -> PublishResult:
+    def _publish(
+        self, ctx: AgentContext, skill: SkillInput, visibility: str, *, _admin: bool = False
+    ) -> PublishResult:
         with locked():
             if visibility not in ("global", "personal", "team"):
                 raise InvalidSkillError(
                     f"visibility must be 'global', 'personal', or 'team', got {visibility!r}"
                 )
+            if visibility == "global" and not _admin:
+                raise ForbiddenError("agents may not publish global skills; only an admin can")
             if visibility == "team" and self._agent_owner_user_id(ctx.agent_id) is None:
                 raise InvalidSkillError("team visibility requires an agent owned by a user")
             if not skill.name.strip():
@@ -227,12 +231,14 @@ class RegistryService:
             return PublishResult(ok=True, id=skill_id, version=1, content_hash=digest)
 
     def update(self, identifier: str, skill: SkillInput, agent_key: str | None) -> PublishResult:
-        return self._update(self._require_auth(agent_key), identifier, skill)
+        return self._update(self._require_auth(agent_key), identifier, skill, _admin=False)
 
     def admin_update(self, agent_id: str, identifier: str, skill: SkillInput) -> PublishResult:
-        return self._update(self._as_agent(agent_id), identifier, skill)
+        return self._update(self._as_agent(agent_id), identifier, skill, _admin=True)
 
-    def _update(self, ctx: AgentContext, identifier: str, skill: SkillInput) -> PublishResult:
+    def _update(
+        self, ctx: AgentContext, identifier: str, skill: SkillInput, *, _admin: bool = False
+    ) -> PublishResult:
         with locked():
             if not skill.name.strip() or not skill.body.strip():
                 raise InvalidSkillError("name and body are required")
@@ -241,6 +247,8 @@ class RegistryService:
                 raise NotFoundError(f"no skill matches {identifier!r}")
             if skill_row["owner_agent_id"] != ctx.agent_id:
                 raise ForbiddenError("only the owning agent may update this skill")
+            if skill_row["visibility"] == "global" and not _admin:
+                raise ForbiddenError("agents may not update global skills; only an admin can")
 
             next_version = int(
                 self._db.execute(
