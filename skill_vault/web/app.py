@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markdown_it import MarkdownIt
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
@@ -14,6 +15,10 @@ from skill_vault.config import get_settings
 from skill_vault.web.admin import AdminAuth
 from skill_vault.web.dashboard import router
 
+# Render skill (markdown) bodies to safe HTML. Raw HTML inside skill content is
+# not passed through, so a malicious skill can't inject markup into the dashboard.
+_md = MarkdownIt("commonmark", {"html": False}).enable("table")
+
 
 def create_app(services: Services | None = None, admin: AdminAuth | None = None) -> FastAPI:
     app = FastAPI(title="Skill Vault")
@@ -21,6 +26,8 @@ def create_app(services: Services | None = None, admin: AdminAuth | None = None)
     settings = get_settings()
     admin = admin or AdminAuth(settings.admin_username, settings.admin_password)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+    templates.env.filters["markdown"] = lambda text: _md.render(text) if text else ""
+
     app.mount(
         "/static",
         StaticFiles(directory=str(Path(__file__).parent / "static")),

@@ -32,3 +32,4 @@ htmlcov/
 
 # runtime artifacts
 run/
+*.db.bak-*

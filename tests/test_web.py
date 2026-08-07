@@ -243,7 +243,7 @@ def test_global_browse_shows_results_and_badge(tmp_path: Path) -> None:
     assert "badge-public" in response.text
 
 
-def test_skill_detail_shows_metadata_without_body(tmp_path: Path) -> None:
+def test_skill_detail_shows_metadata_and_body(tmp_path: Path) -> None:
     client, services = _client(tmp_path)
     agent_id = services.auth.create_agent("publisher")
     body = "TOP SECRET BODY CONTENT"
@@ -256,7 +256,8 @@ def test_skill_detail_shows_metadata_without_body(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert "Visible Metadata" in response.text
     assert "Integrity" in response.text
-    assert body not in response.text
+    assert body in response.text
+    assert "Skill file" in response.text
 
 
 def test_key_management_rotate_and_revoke(tmp_path: Path) -> None:

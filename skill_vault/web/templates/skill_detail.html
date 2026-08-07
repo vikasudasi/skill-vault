@@ -24,4 +24,17 @@
     <dd>{{ created_at or "unknown" }}</dd>
   </dl>
 </section>
+
+<section class="panel">
+  <h3>Skill file</h3>
+  {% if skill.body %}
+  <div class="skill-body">{{ skill.body | markdown | safe }}</div>
+  <details class="raw-body">
+    <summary>View raw skill file</summary>
+    <pre class="code-block">{{ skill.body }}</pre>
+  </details>
+  {% else %}
+  <p class="muted">No body content.</p>
+  {% endif %}
+</section>
 {% endblock %}
