@@ -8,9 +8,9 @@
     <script defer src="{{ url_for('static', path='skillvault.js') }}"></script>
   </head>
   <body>
-    <header class="page-header">
-      <div class="container">
-        <h1><a href="/">Skill Vault</a></h1>
+    <header class="page-header public-header">
+      <div class="container public-nav">
+        <p class="brand"><a href="/">Skill Vault</a></p>
         <nav>
           <a href="/browse">Global browse</a>
           {% if request.state.user %}
