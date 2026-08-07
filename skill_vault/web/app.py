@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -51,7 +52,7 @@ def create_app(services: Services | None = None, admin: AdminAuth | None = None)
 
     @app.middleware("http")
     async def init_request_user(request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request.state.user = None
+        request.state.user = _session_user(request)
         return await call_next(request)
 
     @app.get("/healthz")
@@ -68,3 +69,20 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _session_user(request: Request) -> sqlite3.Row | None:
+    """Resolve the current user from the session cookie, if any.
+
+    Runs for every request (via middleware) so templates that branch on
+    request.state.user — e.g. the header showing Logout vs Login — are
+    correct on all pages, including public ones like /browse.
+    """
+    services = request.app.state.services
+    if not isinstance(services, Services):
+        return None
+    cookie_name = str(getattr(request.app.state, "session_cookie", "sv_session"))
+    token = request.cookies.get(cookie_name)
+    if not token:
+        return None
+    return services.auth.get_user_by_session(token)

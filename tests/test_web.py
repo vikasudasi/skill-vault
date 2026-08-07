@@ -127,6 +127,16 @@ def test_public_pages_do_not_require_admin_auth(tmp_path: Path) -> None:
     assert client.get("/configure").status_code == 200
 
 
+def test_browse_header_shows_logout_when_logged_in(tmp_path: Path) -> None:
+    client, _ = _authed_client(tmp_path)
+    page = client.get("/browse")
+    assert page.status_code == 200
+    # The user is logged in, so the header must show Logout / not Login+Sign up
+    assert "Logout" in page.text
+    assert 'href="/login"' not in page.text
+    assert 'href="/signup"' not in page.text
+
+
 def test_homepage_replaces_wildcard_host(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("SKILL_VAULT_WEB_HOST", "0.0.0.0")
     monkeypatch.setenv("SKILL_VAULT_WEB_PORT", "8000")
