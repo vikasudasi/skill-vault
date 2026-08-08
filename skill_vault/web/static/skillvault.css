@@ -733,19 +733,46 @@ td code {
     justify-content: center;
   }
 
-  /* List rows stack title + actions vertically; action buttons go full-width
-     for easier tapping. */
+  /* List rows stack title + actions vertically; action buttons become
+     equal-width grid cells so they align and fill the row on mobile. */
   .list li {
     flex-direction: column;
     align-items: stretch;
   }
 
+  /* The generic `.list li > :first-child` rule uses `flex: 1 1 15rem` as a
+     WIDTH basis for the desktop row layout. Once the list is a column, that
+     same basis is applied to HEIGHT and forces each item (e.g. an agent) to
+     be at least 15rem tall no matter how little content it has. Reset it. */
+  .list li > :first-child {
+    flex-basis: auto;
+  }
+
   .actions {
     width: 100%;
+    /* Grid (instead of flex) so a button wrapped in a form.inline gets the
+       same sized cell as a plain .btn anchor — they stay aligned. */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .actions > * {
+    min-width: 0;
   }
 
   .actions .btn,
   .actions button {
+    width: 100%;
+  }
+
+  /* Buttons nested inside a form.inline don't stretch to the grid cell on
+     their own — make the form a flex container so its child fills it. */
+  .actions .inline {
+    display: flex;
+    width: 100%;
+  }
+
+  .actions .inline button {
     flex: 1 1 auto;
     width: 100%;
   }
