@@ -30,6 +30,34 @@ window.theme = function () {
   };
 };
 
+// --- Alpine tab component (agent dashboard, skill form) ---------------------
+// Each tab button toggles a named view; the active panel is shown with x-show.
+window.skillTabs = function (initial) {
+  return {
+    tab: initial || "personal",
+    setTab(name) {
+      this.tab = name;
+    },
+    is(name) {
+      return this.tab === name;
+    },
+  };
+};
+
+// --- Alpine form validation helper (skill publish/edit) ---------------------
+window.skillForm = function (initialBody) {
+  return {
+    body: initialBody || "",
+    view: "write",
+    setView(v) {
+      this.view = v;
+    },
+    get chars() {
+      return this.body.length;
+    },
+  };
+};
+
 // --- highlight.js -----------------------------------------------------------
 function runHighlight() {
   if (!window.hljs) {

@@ -490,6 +490,92 @@ td {
   overflow-x: auto;
 }
 
+/* --- Buttons (unified actions across dashboard / agents / forms) ----------- */
+.btn {
+  display: inline-block;
+  border: 1px solid rgb(var(--sv-border-strong));
+  border-radius: calc(var(--radius) - 2px);
+  background: rgb(var(--sv-bg));
+  color: rgb(var(--sv-text));
+  padding: 0.4rem 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--header-bg);
+  color: #ffffff;
+  border-color: var(--header-bg);
+}
+
+.btn-secondary {
+  background: rgb(var(--sv-bg));
+  color: rgb(var(--sv-text));
+}
+
+.btn-danger {
+  background: rgb(var(--sv-bg));
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* Alpine x-cloak: hide Alpine-controlled panels until initialised (prevents
+   a flash of all tab panels before Alpine has applied x-show). */
+[x-cloak] {
+  display: none !important;
+}
+
+/* --- Auth + form pages (login / signup / onboard / skill form) ------------- */
+.panel-auth {
+  max-width: 440px;
+  margin: 1.5rem auto;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.85rem;
+}
+
+.form-field label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.form-field .hint {
+  color: rgb(var(--sv-muted));
+  font-size: 0.8rem;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.form-note {
+  color: rgb(var(--sv-muted));
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+.visibility-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.25rem;
+}
+
+.visibility-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 500;
+}
+
 /* Search-as-you-type (browse) helpers */
 .search-row {
   display: flex;

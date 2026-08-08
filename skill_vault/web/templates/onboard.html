@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Onboard Agent{% endblock %}
 {% block content %}
-<section class="panel">
+<section class="panel panel-auth">
   <h2>Onboard Agent</h2>
   <form method="post" action="/dashboard/onboard" class="stack">
-    <label for="name">Agent name</label>
-    <input id="name" name="name" type="text" required />
-    <button type="submit">Create agent and issue key</button>
+    <div class="form-field">
+      <label for="name">Agent name</label>
+      <input id="name" name="name" type="text" required placeholder="e.g. my-coding-agent" />
+      <span class="hint">A new agent is created and issued an API key.</span>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create agent and issue key</button>
+    </div>
   </form>
 </section>
 {% endblock %}

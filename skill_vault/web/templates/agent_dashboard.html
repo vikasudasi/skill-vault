@@ -1,19 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Agent Dashboard{% endblock %}
 {% block content %}
-<section class="panel">
-  <h2>{{ agent["name"] }}</h2>
-  <p class="muted">{{ agent["id"] }}</p>
-  <p><a href="/agents/{{ agent_id }}/skills/new">Publish new skill</a></p>
+<section class="panel detail-header">
+  <div class="detail-title-row">
+    <h2 class="detail-name">{{ agent["name"] }}</h2>
+    <span class="badge badge-{{ 'verified' if agent['is_super_agent'] else 'user' }}">{{ 'super agent' if agent['is_super_agent'] else 'agent' }}</span>
+  </div>
+  <p class="muted detail-id"><code>{{ agent["id"] }}</code></p>
+  <p><a class="button-link" href="/agents/{{ agent_id }}/skills/new">Publish new skill</a></p>
 </section>
 
-<section class="panel">
-  <div class="tabs">
-    <button type="button" class="tab-button {% if active_tab == 'personal' %}is-active{% endif %}" data-tab-target="tab-personal">Personal</button>
-    <button type="button" class="tab-button {% if active_tab == 'global' %}is-active{% endif %}" data-tab-target="tab-global">Global</button>
+{# Alpine-powered tab switcher: x-show drives the visible panel. #}
+<section class="panel" x-data="skillTabs('{{ active_tab }}')">
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab-button" @click="setTab('personal')" :class="{ 'is-active': is('personal') }" role="tab" :aria-selected="is('personal') ? 'true' : 'false'">Personal</button>
+    <button type="button" class="tab-button" @click="setTab('global')" :class="{ 'is-active': is('global') }" role="tab" :aria-selected="is('global') ? 'true' : 'false'">Global</button>
   </div>
 
-  <div id="tab-personal" class="tab-panel {% if active_tab == 'personal' %}is-active{% endif %}">
+  <div x-show="is('personal')" x-cloak>
     {% if personal_skills %}
     <ul class="list">
       {% for skill in personal_skills %}
@@ -25,26 +29,26 @@
           <p>{{ skill.description }}</p>
         </div>
         <div class="actions">
-          <a href="/agents/{{ agent_id }}/skills/{{ skill.id }}/edit">Edit</a>
-          <form method="post" action="/agents/{{ agent_id }}/skills/{{ skill.id }}/delete">
-            <button type="submit" data-confirm="Delete this skill?">Delete</button>
+          <a class="btn btn-secondary" href="/agents/{{ agent_id }}/skills/{{ skill.id }}/edit">Edit</a>
+          <form method="post" action="/agents/{{ agent_id }}/skills/{{ skill.id }}/delete" class="inline">
+            <button type="submit" class="btn btn-danger" data-confirm="Delete this skill?">Delete</button>
           </form>
         </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p>No skills yet.</p>
+    <p class="muted">No skills yet.</p>
     {% endif %}
   </div>
 
-  <div id="tab-global" class="tab-panel {% if active_tab == 'global' %}is-active{% endif %}">
+  <div x-show="is('global')" x-cloak>
     <form method="get" action="/agents/{{ agent_id }}" class="stack">
       <input type="hidden" name="tab" value="global" />
       <label for="q">Search global skills</label>
       <input id="q" name="q" type="search" value="{{ q }}" />
       <input type="hidden" name="page" value="1" />
-      <button type="submit">Search</button>
+      <button type="submit" class="btn btn-primary">Search</button>
     </form>
     {% if global_skills %}
     <ul class="list">
@@ -60,7 +64,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p>No results.</p>
+    <p class="muted">No results.</p>
     {% endif %}
     <div class="pager">
       {% if page > 1 %}
@@ -75,6 +79,7 @@
 
 <section class="panel">
   <h3>API Keys</h3>
+  {# Polished key table with active/revoked badges. #}
   {% if keys %}
   <table>
     <thead>
@@ -92,21 +97,29 @@
         <td><code>{{ key.key_id }}</code></td>
         <td><code>{{ key.key_prefix }}</code></td>
         <td>{{ key.last_used_at or "never" }}</td>
-        <td>{% if key.revoked_at %}revoked{% else %}active{% endif %}</td>
         <td>
-          <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/rotate" class="inline">
-            <button type="submit">Rotate</button>
-          </form>
-          <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/revoke" class="inline">
-            <button type="submit" data-confirm="Revoke this key?">Revoke</button>
-          </form>
+          {% if key.revoked_at %}
+          <span class="badge badge-public">revoked</span>
+          {% else %}
+          <span class="badge badge-verified">active</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="actions">
+            <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/rotate" class="inline">
+              <button type="submit" class="btn btn-secondary">Rotate</button>
+            </form>
+            <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/revoke" class="inline">
+              <button type="submit" class="btn btn-danger" data-confirm="Revoke this key?">Revoke</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p>No keys.</p>
+  <p class="muted">No keys.</p>
   {% endif %}
 </section>
 {% endblock %}

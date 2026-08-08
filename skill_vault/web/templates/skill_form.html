@@ -3,30 +3,67 @@
 {% block content %}
 <section class="panel">
   <h2>{{ title }}</h2>
-  <form method="post" action="{{ action_url }}" class="stack">
-    <label for="name">Name</label>
-    <input id="name" name="name" value="{{ skill.name if skill else '' }}" required />
+  <form method="post" action="{{ action_url }}" class="stack" x-data="skillForm()">
+    <div class="form-field">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{ skill.name if skill else '' }}" required />
+    </div>
 
-    <label for="description">Description</label>
-    <input id="description" name="description" value="{{ skill.description if skill else '' }}" required />
+    <div class="form-field">
+      <label for="description">Description</label>
+      <input id="description" name="description" value="{{ skill.description if skill else '' }}" required />
+    </div>
 
-    <label for="tags">Tags (comma-separated)</label>
-    <input id="tags" name="tags" value="{{ tags }}" />
+    <div class="form-field">
+      <label for="tags">Tags (comma-separated)</label>
+      <input id="tags" name="tags" value="{{ tags }}" />
+      <span class="hint">Optional. e.g. git, llm-prompting, dataclasses</span>
+    </div>
 
-    <label for="triggers">Triggers (comma-separated)</label>
-    <input id="triggers" name="triggers" value="{{ triggers }}" />
+    <div class="form-field">
+      <label for="triggers">Triggers (comma-separated)</label>
+      <input id="triggers" name="triggers" value="{{ triggers }}" />
+      <span class="hint">Optional. e.g. rebase, refactor, summarize</span>
+    </div>
 
-    <label for="body">Body</label>
-    <textarea id="body" name="body" rows="12" required>{{ skill.body if skill else '' }}</textarea>
+    <div class="form-field">
+      <label for="body">Body (SKILL.md markdown)</label>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab-button" @click="setView('write')" :class="{ 'is-active': view === 'write' }" role="tab">Write</button>
+        <button type="button" class="tab-button" @click="setView('preview')" :class="{ 'is-active': view === 'preview' }" role="tab">Raw preview</button>
+      </div>
+      <textarea
+        id="body"
+        name="body"
+        rows="12"
+        x-show="view === 'write'"
+        x-cloak
+        x-init="$root.body = $el.value"
+        @input="$root.body = $el.value"
+        required
+        placeholder="# Skill title&#10;&#10;Describe the capability and when to use it…"
+      >{{ skill.body if skill else '' }}</textarea>
+      <div x-show="view === 'preview'" x-cloak>
+        <pre class="code-block" x-text="body"></pre>
+      </div>
+      <span class="hint">Body length: <span x-text="chars"></span> characters.</span>
+    </div>
 
-    <fieldset>
-      <legend>Visibility</legend>
-      <label><input type="radio" name="visibility" value="personal" {% if visibility == "personal" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Personal</label>
-      <label><input type="radio" name="visibility" value="team" {% if visibility == "team" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Team</label>
-      <label><input type="radio" name="visibility" value="global" {% if visibility == "global" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Global</label>
-    </fieldset>
+    <div class="form-field">
+      <fieldset>
+        <legend>Visibility</legend>
+        <div class="visibility-options">
+          <label><input type="radio" name="visibility" value="personal" {% if visibility == "personal" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Personal</label>
+          <label><input type="radio" name="visibility" value="team" {% if visibility == "team" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Team</label>
+          <label><input type="radio" name="visibility" value="global" {% if visibility == "global" %}checked{% endif %} {% if mode == "edit" %}disabled{% endif %} /> Global</label>
+        </div>
+        <span class="hint">Global publishing keeps the verified auto-sign path unchanged.</span>
+      </fieldset>
+    </div>
 
-    <button type="submit">{{ submit_label }}</button>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+    </div>
   </form>
 </section>
 {% endblock %}

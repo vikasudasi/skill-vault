@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<section class="panel">
+<section class="panel panel-auth">
   <h2>{{ title }}</h2>
   <p>Agent id: <code>{{ agent_id }}</code></p>
   <p>Key id: <code>{{ key_id }}</code></p>
@@ -9,8 +9,8 @@
   <p class="warning">This key is shown only once. Save it now.</p>
   <div class="copy-row">
     <input id="raw-key" type="text" value="{{ raw_key }}" readonly />
-    <button type="button" data-copy-target="raw-key">Copy</button>
+    <button type="button" class="btn btn-primary" data-copy-target="raw-key">Copy</button>
   </div>
-  <p><a href="/agents/{{ agent_id }}">Go to agent dashboard</a></p>
+  <p class="form-note"><a href="/agents/{{ agent_id }}">Go to agent dashboard</a></p>
 </section>
 {% endblock %}

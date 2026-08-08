@@ -2,32 +2,39 @@
 {% block title %}Agents Overview{% endblock %}
 {% block content %}
 <section class="panel">
-  <h2>Agents</h2>
-  <p><a href="/dashboard/onboard">Onboard a new agent</a></p>
+  <div class="detail-title-row">
+    <h2 class="detail-name">Agents</h2>
+    <a class="btn btn-primary" href="/dashboard/onboard">Onboard a new agent</a>
+  </div>
   {% if agents %}
   <ul class="list">
     {% for agent in agents %}
     <li>
-      <strong>{{ agent["name"] }}</strong>
-      <span class="muted">{{ agent["id"] }}</span>
-      {% if is_superuser and agent["is_super_agent"] %}<span class="badge badge-verified">super agent</span>{% endif %}
-      <a href="/agents/{{ agent['id'] }}">Open dashboard</a>
-      {% if is_superuser %}
-      <form method="post" action="/agents/{{ agent['id'] }}/super" style="display:inline">
-        {% if agent["is_super_agent"] %}
-        <input type="hidden" name="is_super" value="0">
-        <button type="submit">Demote to normal</button>
-        {% else %}
-        <input type="hidden" name="is_super" value="1">
-        <button type="submit">Promote to super agent</button>
+      <div>
+        <strong>{{ agent["name"] }}</strong>
+        {% if agent["is_super_agent"] %}<span class="badge badge-verified" title="Super agent can publish/update global skills (auto-signed -> verified)">super agent</span>{% endif %}
+        <p class="muted detail-id"><code>{{ agent["id"] }}</code></p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-secondary" href="/agents/{{ agent['id'] }}">Open dashboard</a>
+        {% if is_superuser %}
+        {# Super-user toggle for the existing /agents/{id}/super route. #}
+        <form method="post" action="/agents/{{ agent['id'] }}/super" class="inline">
+          {% if agent["is_super_agent"] %}
+          <input type="hidden" name="is_super" value="0">
+          <button type="submit" class="btn btn-secondary" data-confirm="Demote this agent to a normal agent? It will lose super-agent publish privileges.">Demote to normal</button>
+          {% else %}
+          <input type="hidden" name="is_super" value="1">
+          <button type="submit" class="btn btn-primary">Promote to super agent</button>
+          {% endif %}
+        </form>
         {% endif %}
-      </form>
-      {% endif %}
+      </div>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p>No agents yet.</p>
+  <p class="muted">No agents yet.</p>
   {% endif %}
 </section>
 {% endblock %}
