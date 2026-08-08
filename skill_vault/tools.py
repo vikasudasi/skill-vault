@@ -60,7 +60,14 @@ def _translate_errors() -> Iterator[None]:
 def register_tools(server: FastMCP, registry: RegistryService) -> None:
     """Register the Skill Vault tool surface on ``server`` against ``registry``."""
 
-    @server.tool(description="Semantic search for relevant skills by natural-language query.")
+    @server.tool(
+        description=(
+            "Find skills relevant to a task by semantic similarity. Preferred over listing when you "
+            "need the BEST match on a topic (e.g. 'how do I write a pytest fixture'). Returns lightweight "
+            "cards with a relevance score. scope: 'global' (default, no key needed) | 'all' / 'personal' "
+            "(requires agent_key). Optional min_trust filters results to a minimum trust tier."
+        )
+    )
     def search_skills(
         query: str,
         scope: str = "global",
@@ -77,14 +84,28 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
                 agent_key=_resolve_agent_key(agent_key),
             )
 
-    @server.tool(description="Fetch the full content of a skill by id or version id.")
+    @server.tool(
+        description=(
+            "Fetch the FULL content of a skill (SKILL.md body + trust/verified/content_hash) by id or "
+            "version id. Use when you need the actual skill text/instructions, not just a card. Global "
+            "skills are readable by anyone; personal/team skills require the owning agent_key. Use "
+            "search_skills first to find an id if you don't have one."
+        )
+    )
     def get_skill(id: str, version: int | None = None, agent_key: str | None = None) -> SkillDetail:
         with locked(), _translate_errors():
             return registry.get(
                 identifier=id, version=version, agent_key=_resolve_agent_key(agent_key)
             )
 
-    @server.tool(description="Publish a new skill to your vault (global, team, or personal).")
+    @server.tool(
+        description=(
+            "Create a NEW skill (version 1). visibility: 'personal' (default) | 'team' | 'global'. "
+            "IMPORTANT: a normal agent key may only publish to 'personal'/'team' — publishing to 'global' "
+            "requires a SUPER-AGENT key or admin and raises SV_FORBIDDEN otherwise. Raises SV_CONFLICT if a "
+            "skill with that name already exists in your scope — in that case use update_skill instead."
+        )
+    )
     def publish_skill(
         skill: SkillInput, visibility: str = "personal", agent_key: str | None = None
     ) -> PublishResult:
@@ -93,24 +114,50 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
                 skill=skill, visibility=visibility, agent_key=_resolve_agent_key(agent_key)
             )
 
-    @server.tool(description="Update an existing skill you own (creates a new version).")
+    @server.tool(
+        description=(
+            "Append a new immutable VERSION to an existing skill you own (version = max+1, previous "
+            "versions stay hash-pinned and addressable). Use instead of publish_skill when the skill name "
+            "already exists in your scope. Only the owning agent may update; updating a 'global' skill "
+            "requires a super-agent key or admin (else SV_FORBIDDEN). Global updates by a super-agent "
+            "auto-sign to trust tier 'verified'."
+        )
+    )
     def update_skill(id: str, skill: SkillInput, agent_key: str | None = None) -> PublishResult:
         with locked(), _translate_errors():
             return registry.update(
                 identifier=id, skill=skill, agent_key=_resolve_agent_key(agent_key)
             )
 
-    @server.tool(description="Delete a skill you own.")
+    @server.tool(
+        description=(
+            "Permanently delete a skill you own (owner-only; version history is kept for audit). Use only "
+            "when the skill should no longer exist at all. For corrective content changes, prefer "
+            "update_skill (creates a new version) so history is preserved."
+        )
+    )
     def delete_skill(id: str, agent_key: str | None = None) -> DeleteResult:
         with locked(), _translate_errors():
             return registry.delete(identifier=id, agent_key=_resolve_agent_key(agent_key))
 
-    @server.tool(description="List the skills in your personal vault.")
+    @server.tool(
+        description=(
+            "List cards (no bodies) for the authenticated agent's PERSONAL skills only. Use to enumerate "
+            "your own vault (e.g. 'what did I publish?'). For the public store use list_global_skills; for "
+            "topic discovery use search_skills. Requires agent_key."
+        )
+    )
     def list_my_skills(agent_key: str | None = None) -> list[SkillCard]:
         with locked(), _translate_errors():
             return registry.list_my(agent_key=_resolve_agent_key(agent_key))
 
-    @server.tool(description="Browse the global (public) skill store with pagination.")
+    @server.tool(
+        description=(
+            "Browse the curated GLOBAL (public) skill store as paged cards (no bodies, no key needed). Use "
+            "to enumerate/explore the public library; use search_skills when you want relevance-ranked "
+            "matches on a topic instead of a flat page."
+        )
+    )
     def list_global_skills(limit: int = 20, offset: int = 0) -> list[SkillCard]:
         with locked(), _translate_errors():
             return registry.list_global(limit=limit, offset=offset)
