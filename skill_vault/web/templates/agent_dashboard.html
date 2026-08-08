@@ -8,6 +8,9 @@
   </div>
   <p class="muted detail-id"><code>{{ agent["id"] }}</code></p>
   <p><a class="button-link" href="/agents/{{ agent_id }}/skills/new">Publish new skill</a></p>
+  <form method="post" action="/agents/{{ agent_id }}/delete" class="stack" style="margin-top: 0.75rem;">
+    <button type="submit" class="btn btn-danger" data-confirm="Delete this agent{% if personal_skills %} and its {{ personal_skills | length }} owned skill(s){% endif %}? This permanently removes them and cannot be undone.">Delete Agent</button>
+  </form>
 </section>
 
 {# Alpine-powered tab switcher: x-show drives the visible panel. #}
@@ -79,8 +82,11 @@
 
 <section class="panel">
   <h3>API Keys</h3>
-  {# Polished key table with active/revoked badges. #}
+  {# Polished key table with active/revoked badges. Wrapped in .table-scroll
+     so long key ids scroll horizontally instead of overflowing the page on
+     narrow screens. #}
   {% if keys %}
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
@@ -118,6 +124,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p class="muted">No keys.</p>
   {% endif %}

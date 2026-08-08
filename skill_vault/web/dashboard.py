@@ -289,6 +289,36 @@ def delete_skill(request: Request, agent_id: str, skill_id: str) -> RedirectResp
 
 
 @router.post(
+    "/agents/{agent_id}/delete",
+    dependencies=[Depends(require_user)],
+)
+def delete_agent(request: Request, agent_id: str) -> RedirectResponse:
+    """Delete an agent and cascade-remove the skills it owns.
+
+    Restricted to the agent's owner (normal user) or any superuser via
+    ``RegistryService.delete_agent``. Deleting the owner's last/only agent is
+    blocked by the service guardrail and surfaces as an HTTP error here.
+    """
+    services = _services(request)
+    user = _current_user(request)
+    is_superuser = bool(user["superuser"])
+    with locked():
+        row = _owned_agent_row(services, user, agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        with locked():
+            services.registry.delete_agent(
+                agent_id,
+                owner_user_id=str(user["id"]),
+                is_superuser=is_superuser,
+            )
+    except SkillVaultError as exc:
+        _raise_http(exc)
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@router.post(
     "/agents/{agent_id}/keys/{key_id}/rotate",
     response_class=HTMLResponse,
     dependencies=[Depends(require_user)],

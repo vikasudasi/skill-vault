@@ -311,25 +311,94 @@ class RegistryService:
                 raise NotFoundError(f"no skill matches {identifier!r}")
             if skill_row["owner_agent_id"] != ctx.agent_id:
                 raise ForbiddenError("only the owning agent may delete this skill")
-
-            version_ids = [
-                r["id"]
-                for r in self._db.execute(
-                    "SELECT id FROM skill_versions WHERE skill_id = ?", (skill_row["id"],)
-                ).fetchall()
-            ]
-            for vid in version_ids:
-                self._search.remove_version(vid)
-                self._db.execute("DELETE FROM trust WHERE skill_version_id = ?", (vid,))
-            # Break the FK back-reference (current_version_id) before deleting versions.
-            self._db.execute(
-                "UPDATE skills SET current_version_id = NULL WHERE id = ?",
-                (skill_row["id"],),
-            )
-            self._db.execute("DELETE FROM skill_versions WHERE skill_id = ?", (skill_row["id"],))
-            self._db.execute("DELETE FROM skills WHERE id = ?", (skill_row["id"],))
+            self._remove_skill_content(skill_row["id"])
             self._db.commit()
             return DeleteResult(ok=True, id=skill_row["id"], deleted=True)
+
+    def delete_agent(
+        self,
+        agent_id: str,
+        *,
+        owner_user_id: str | None = None,
+        is_superuser: bool = False,
+    ) -> DeleteResult:
+        """Delete an agent and cascade-remove every skill it owns.
+
+        Guardrails
+        ----------
+        - **Ownership scoping**: a non-superuser may only delete an agent whose
+          ``owner_user_id`` matches the caller's user id; a superuser may delete
+          any agent.
+        - **Last-agent guard**: an agent that is the *only* (or last) agent for
+          its owner group cannot be deleted, so an owner never gets stranded with
+          zero agents. NULL-owner (seed/system) agents form their own group.
+        - **Cascade policy**: every skill owned by the agent (``owner_agent_id``)
+          is cascade-deleted — its versions, trust/verification records, and
+          search index entries are removed together with the skill. The agent's
+          API keys are removed via the ``api_keys.agent_id`` FK ON DELETE CASCADE.
+        """
+        with locked():
+            agent_row = self._db.execute(
+                "SELECT id, owner_user_id FROM agents WHERE id = ?", (agent_id,)
+            ).fetchone()
+            if agent_row is None:
+                raise NotFoundError(f"no agent matches {agent_id!r}")
+
+            agent_owner = agent_row["owner_user_id"]
+            agent_owner = str(agent_owner) if agent_owner is not None else None
+            if not is_superuser and agent_owner != owner_user_id:
+                raise ForbiddenError("only the agent owner or a superuser may delete this agent")
+
+            # A non-superuser may not delete their last remaining agent.
+            if not is_superuser:
+                if agent_owner is None:
+                    owner_count = self._db.execute(
+                        "SELECT COUNT(*) AS c FROM agents WHERE owner_user_id IS NULL"
+                    ).fetchone()["c"]
+                else:
+                    owner_count = self._db.execute(
+                        "SELECT COUNT(*) AS c FROM agents WHERE owner_user_id = ?",
+                        (agent_owner,),
+                    ).fetchone()["c"]
+                if owner_count <= 1:
+                    raise ForbiddenError("cannot delete the last agent for this user")
+
+            skill_ids = [
+                r["id"]
+                for r in self._db.execute(
+                    "SELECT id FROM skills WHERE owner_agent_id = ?", (agent_id,)
+                ).fetchall()
+            ]
+            for skill_id in skill_ids:
+                self._remove_skill_content(skill_id)
+
+            # API keys cascade via api_keys.agent_id FK ON DELETE CASCADE.
+            self._db.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
+            self._db.commit()
+        return DeleteResult(ok=True, id=agent_id, deleted=True)
+
+    def _remove_skill_content(self, skill_id: str) -> None:
+        """Remove a skill's versions, trust records, and search entries in-place.
+
+        Assumes ownership has already been authorized by the caller. Used by both
+        the skill-delete path and the agent-delete cascade.
+        """
+        version_ids = [
+            r["id"]
+            for r in self._db.execute(
+                "SELECT id FROM skill_versions WHERE skill_id = ?", (skill_id,)
+            ).fetchall()
+        ]
+        for vid in version_ids:
+            self._search.remove_version(vid)
+            self._db.execute("DELETE FROM trust WHERE skill_version_id = ?", (vid,))
+        # Break the FK back-reference (current_version_id) before deleting versions.
+        self._db.execute(
+            "UPDATE skills SET current_version_id = NULL WHERE id = ?",
+            (skill_id,),
+        )
+        self._db.execute("DELETE FROM skill_versions WHERE skill_id = ?", (skill_id,))
+        self._db.execute("DELETE FROM skills WHERE id = ?", (skill_id,))
 
     # -- listing ------------------------------------------------------------
 

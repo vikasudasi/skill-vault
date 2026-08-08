@@ -564,3 +564,123 @@ def test_non_superuser_cannot_toggle_super_agent_flag(tmp_path: Path) -> None:
         ).fetchone()["is_super_agent"]
         == 0
     )
+
+
+# -- delete agent ------------------------------------------------------------
+
+
+def _agent_owned_by_user(services, user_id: str, name: str) -> str:
+    return services.auth.onboard(name, owner_user_id=user_id).agent_id
+
+
+def test_delete_agent_success(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path)
+    user_id = services.db.execute(
+        "SELECT id FROM users WHERE email = ?", ("engineer@skillvault.dev",)
+    ).fetchone()["id"]
+    agent_id = _agent_owned_by_user(services, user_id, "doomed-agent")
+
+    response = client.post(f"/agents/{agent_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    assert services.db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone() is None
+
+
+def test_delete_agent_last_agent_blocked(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path, superuser=False)
+    user_id = services.db.execute(
+        "SELECT id FROM users WHERE email = ?", ("engineer@skillvault.dev",)
+    ).fetchone()["id"]
+    agent_id = _agent_owned_by_user(services, user_id, "only-agent")
+
+    response = client.post(f"/agents/{agent_id}/delete", follow_redirects=False)
+    assert response.status_code == 403
+    # Agent still exists.
+    assert (
+        services.db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone() is not None
+    )
+
+
+def test_delete_agent_non_owner_forbidden(tmp_path: Path) -> None:
+    # Owner B has an agent; non-superuser A must not be able to delete it.
+    services = _services(tmp_path)
+    app = create_app(
+        services=services,
+        admin=AdminAuth("t", "t", verify=lambda u, p: u == "t" and p == "t"),
+    )
+    client_owner, client_other = TestClient(app), TestClient(app)
+    services.auth.create_user("owner@example.com", "password123")
+    services.auth.create_user("other@example.com", "password123")
+    owner_login = client_owner.post(
+        "/login",
+        data={"email": "owner@example.com", "password": "password123"},
+        follow_redirects=False,
+    )
+    other_login = client_other.post(
+        "/login",
+        data={"email": "other@example.com", "password": "password123"},
+        follow_redirects=False,
+    )
+    assert owner_login.status_code == 302 and other_login.status_code == 302
+    owner_id = services.db.execute(
+        "SELECT id FROM users WHERE email = 'owner@example.com'"
+    ).fetchone()["id"]
+    agent_id = _agent_owned_by_user(services, owner_id, "private-agent")
+
+    # Non-owner gets 404 (route hides the agent entirely, like other agent routes).
+    response = client_other.post(f"/agents/{agent_id}/delete", follow_redirects=False)
+    assert response.status_code == 404
+    assert (
+        services.db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone() is not None
+    )
+
+    # Superuser may delete any agent.
+    services.auth.upsert_superuser("root@example.com", "password123")
+    client_root = TestClient(app)
+    root_login = client_root.post(
+        "/login",
+        data={"email": "root@example.com", "password": "password123"},
+        follow_redirects=False,
+    )
+    assert root_login.status_code == 302
+    root_response = client_root.post(f"/agents/{agent_id}/delete", follow_redirects=False)
+    assert root_response.status_code == 303
+    assert services.db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone() is None
+
+
+def test_delete_agent_cascades_owned_skills(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path)
+    user_id = services.db.execute(
+        "SELECT id FROM users WHERE email = ?", ("engineer@skillvault.dev",)
+    ).fetchone()["id"]
+    agent_id = _agent_owned_by_user(services, user_id, "cascade-agent")
+    second_agent = _agent_owned_by_user(services, user_id, "survivor-agent")
+
+    # Owner publishes personal + team skills owned by the doomed agent.
+    personal = services.registry.admin_publish(agent_id, _skill("Personal Tactic"), "personal")
+    team = services.registry.admin_publish(agent_id, _skill("Team Playbook"), "team")
+    # A global skill owned by the doomed agent (published via superuser admin path).
+    global_skill = services.registry.admin_publish(agent_id, _skill("Global Note"), "global")
+
+    response = client.post(f"/agents/{agent_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+
+    # All owned skills are gone — skills, versions, and trust records cascade.
+    for sid in (personal.id, team.id, global_skill.id):
+        assert services.db.execute("SELECT 1 FROM skills WHERE id = ?", (sid,)).fetchone() is None
+        assert (
+            services.db.execute(
+                "SELECT 1 FROM skill_versions WHERE skill_id = ?", (sid,)
+            ).fetchone()
+            is None
+        )
+    trust_rows = services.db.execute(
+        "SELECT COUNT(*) AS c FROM trust WHERE skill_version_id = ?", (personal.id,)
+    ).fetchone()["c"]
+    assert trust_rows == 0
+
+    # The survivor agent + its own skills remain.
+    assert (
+        services.db.execute("SELECT 1 FROM agents WHERE id = ?", (second_agent,)).fetchone()
+        is not None
+    )
