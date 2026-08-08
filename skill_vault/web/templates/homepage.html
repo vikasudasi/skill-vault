@@ -1,13 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Skill Vault | One MCP Endpoint for Skills</title>
+
+    {# Apply the saved / system colour scheme BEFORE paint to avoid a flash. #}
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem("sv-theme");
+        } catch (e) {
+          stored = null;
+        }
+        var dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var root = document.documentElement;
+        root.classList.toggle("dark", dark);
+        root.setAttribute("data-theme", dark ? "dark" : "light");
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="{{ url_for('static', path='skillvault.css') }}" />
     <script defer src="{{ url_for('static', path='skillvault.js') }}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
-  <body>
+  <body x-data="theme()">
     {% set GITHUB_URL = "https://github.com/vikasudasi/skill-vault" %}
     {% set BLOG_URL = "https://vikasudasi.github.io/blog/2026/skill-vault/" %}
     <header class="page-header public-header">
@@ -19,17 +43,30 @@
           <a href="/dashboard">Dashboard</a>
           <a href="{{ BLOG_URL }}">Blog</a>
           <a href="{{ GITHUB_URL }}">GitHub</a>
+          <button
+            type="button"
+            class="theme-toggle"
+            @click="toggle()"
+            :aria-pressed="dark ? 'true' : 'false'"
+            aria-label="Toggle dark mode"
+            title="Toggle dark mode"
+          >
+            <span aria-hidden="true">🌓</span><span class="sr-only">Toggle dark mode</span>
+          </button>
         </nav>
       </div>
     </header>
 
     <main class="container public-main">
+      {# Hero — clean typography, gradient accent, clear value prop. #}
       <section class="panel hero">
         <p class="eyebrow">Self-hosted skill registry for agents</p>
-        <h1>One MCP endpoint for thousands of SKILL.md capabilities.</h1>
+        <h1 class="hero-headline">
+          One MCP endpoint for <span class="hero-accent">thousands of skills</span>.
+        </h1>
         <p class="hero-copy">
-          Skill Vault lets agents discover the right skill on demand instead of carrying an ever-growing
-          local skill library in context.
+          Skill Vault lets agents discover the right skill on demand instead of carrying an
+          ever-growing local skill library in context. Fetch the full SKILL.md only when it matters.
         </p>
         <div class="cta-row">
           <a class="button-link" href="/dashboard">Open Dashboard</a>
@@ -38,58 +75,63 @@
         </div>
       </section>
 
+      {# Problem / solution #}
       <section id="features" class="panel">
         <h2>The problem: context bloat at skill scale</h2>
         <p>
-          At 1,000–10,000 skills, an agent cannot keep every SKILL.md in active context. Even lightweight
-          descriptions can exceed practical token limits (~500K tokens at 10k skills), which hurts quality
-          and speed.
+          At 1,000–10,000 skills, an agent cannot keep every SKILL.md in active context. Even
+          lightweight descriptions can exceed practical token limits (~500K tokens at 10k skills),
+          which hurts quality and speed.
         </p>
       </section>
 
       <section class="panel">
         <h2>The solution</h2>
         <p>
-          Wire one MCP server, semantically search for what you need, and fetch the full skill body only
-          when it is relevant. This keeps prompts focused while preserving access to a large capability
-          catalog.
+          Wire one MCP server, semantically search for what you need, and fetch the full skill body
+          only when it is relevant. This keeps prompts focused while preserving access to a large
+          capability catalog.
         </p>
       </section>
 
+      {# Three differentiators as feature cards #}
       <section class="panel">
         <h2>Three differentiators</h2>
         <div class="feature-grid">
           <article class="feature-card">
             <h3>One MCP endpoint</h3>
             <p>
-              Integrate once, then serve local and remote agent clients through one consistent Skill Vault
-              MCP surface.
+              Integrate once, then serve local and remote agent clients through one consistent Skill
+              Vault MCP surface.
             </p>
           </article>
           <article class="feature-card">
             <h3>Per-agent private vaults</h3>
             <p>
-              Each agent gets isolated personal skills alongside optional shared global skills, without
-              cross-agent leakage.
+              Each agent gets isolated personal skills alongside optional shared global skills,
+              without cross-agent leakage.
             </p>
           </article>
           <article class="feature-card">
             <h3>Verified supply chain</h3>
             <p>
-              Skill versions are content-addressed and trust-tiered so agents can verify integrity before
-              execution.
+              Skill versions are content-addressed and trust-tiered so agents can verify integrity
+              before execution.
             </p>
           </article>
         </div>
       </section>
 
+      {# Live endpoint — kept and restyled #}
       <section class="panel endpoint-banner">
         <h2>Live endpoint</h2>
-        <p class="endpoint-value"><code>{{ endpoint }}</code></p>
+        <p class="endpoint-value">
+          <code>{{ endpoint }}</code>
+        </p>
         {% if host_needs_substitution %}
         <p class="muted">
-          This instance is bound to a wildcard interface. Replace <code>&lt;your-host-or-ip&gt;</code> with
-          your reachable host or IP when configuring remote clients.
+          This instance is bound to a wildcard interface. Replace <code>&lt;your-host-or-ip&gt;</code>
+          with your reachable host or IP when configuring remote clients.
         </p>
         {% endif %}
       </section>

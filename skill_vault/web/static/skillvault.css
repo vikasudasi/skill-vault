@@ -309,9 +309,28 @@ td {
   margin-bottom: 0.75rem;
 }
 
+/* Hero headline for the redesigned landing page: larger type with a gradient
+   accent on the emphasized phrase. Falls back to the accent colour if gradient
+   text isn't supported. */
+.hero-headline {
+  font-size: 2.4rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.hero-accent {
+  background: linear-gradient(120deg, rgb(var(--sv-accent)), #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .hero-copy {
   font-size: 1.05rem;
   line-height: 1.5;
+  max-width: 60ch;
 }
 
 .cta-row {
@@ -636,5 +655,9 @@ td {
 
   .detail-title-row {
     align-items: flex-start;
+  }
+
+  .hero-headline {
+    font-size: 1.8rem;
   }
 }
