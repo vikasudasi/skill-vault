@@ -148,7 +148,7 @@ def test_seed_signs_verified_skill_with_curator_key(tmp_path):
 def test_recheck_signatures_verifies_existing_unsigned_seed_skills(tmp_path):
     priv, pub = generate_curator_keypair()
     services = _services(tmp_path, known_public_keys=[pub])
-    # seed unsigned first -> all 17 exist in DB, all public
+    # seed unsigned first -> all seed skills exist in DB, all public
     seed_skills(services, SEED_SKILLS, curator_key=None)
     for d in sorted(p for p in SEED_SKILLS.iterdir() if p.is_dir()):
         r = services.db.execute(
@@ -160,7 +160,8 @@ def test_recheck_signatures_verifies_existing_unsigned_seed_skills(tmp_path):
 
     # re-sign -> all existing seed skills flip to verified
     count = recheck_signatures(services, SEED_SKILLS, curator_key=priv)
-    assert count == 17, count
+    expected = sum(1 for p in sorted(SEED_SKILLS.iterdir()) if p.is_dir())
+    assert count == expected, count
     for d in sorted(p for p in SEED_SKILLS.iterdir() if p.is_dir()):
         r = services.db.execute(
             "SELECT v.id AS vid FROM skills s JOIN skill_versions v "
