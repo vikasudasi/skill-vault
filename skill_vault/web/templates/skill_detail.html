@@ -5,11 +5,6 @@
   <div class="detail-title-row">
     <h2 class="detail-name">{{ skill.name }}</h2>
     <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-    {% if skill.verified %}
-    <span class="badge badge-verified" title="Content-addressed and signed">verified</span>
-    {% else %}
-    <span class="badge badge-public" title="Not signed">not signed</span>
-    {% endif %}
   </div>
   <p class="muted detail-id"><code>{{ skill.id }}</code></p>
   <p>{{ skill.description }}</p>
