@@ -136,13 +136,56 @@ Override with env vars:
 
 ## TLS and reverse proxy notes
 
+Skill Vault does not terminate TLS itself — it binds plain HTTP and is designed to sit behind a reverse proxy that terminates TLS and forwards to it on localhost. The production deployment (`srv1838697.hstgr.cloud`) uses **nginx 1.30.4 + Let's Encrypt (certbot)**.
+
+### As deployed (nginx + Let's Encrypt)
+
+- **nginx** (from the official nginx.org stable repo — v1.30.4) terminates TLS on port `443` and redirects all HTTP on port `80` to HTTPS (except `/.well-known/acme-challenge/` for renewal).
+- **Let's Encrypt** cert issued via HTTP-01 **webroot** challenge (`/var/lib/letsencrypt`), auto-renewed by `certbot.timer` (twice daily) with the `webroot` authenticator.
+- **skill-vault binds `127.0.0.1` only** (`--host 127.0.0.1` for both `web` and `serve`). Only nginx is internet-facing. This keeps login + agent API keys off plain HTTP on the public interface.
+- **Forwarding** (`/etc/nginx/conf.d/skillvault.conf`):
+  - `location /` → `127.0.0.1:8080` (web/FastAPI)
+  - `location /mcp` → `127.0.0.1:8100/mcp` (MCP streamable-http)
+- **Must set** `X-Forwarded-Proto $scheme` so Skill Vault can detect it's behind TLS (otherwise redirects/HSTS can loop or emit `http` URLs).
+
+### MCP-specific proxy requirements
+
+For MCP streamable-http, forward:
+- both `GET` and `POST`
+- connection upgrade/SSE-related headers (`Upgrade`, `Connection`, etc.) — nginx needs a `map $http_upgrade $connection_upgrade { default upgrade; "" close; }` in its `http` block, plus `proxy_buffering off` and a generous `proxy_read_timeout` so SSE streams are not buffered.
+- original `Host` header.
+
+Public MCP URL under TLS is `https://<host>/mcp`. Minimum working nginx `location /mcp` block:
+
+```nginx
+location /mcp {
+    proxy_pass http://127.0.0.1:8100/mcp;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_read_timeout 300s;
+    proxy_buffering off;
+    client_max_body_size 16m;
+}
+```
+
+### Other options
+
 - Put both services behind Caddy/nginx/Traefik for TLS termination.
-- For MCP streamable-http, forward:
-  - both `GET` and `POST`
-  - connection upgrade/SSE-related headers (`Upgrade`, `Connection`, etc.)
-  - original `Host` header.
 - Set request-size limits appropriately (`client_max_body_size` in nginx, equivalent elsewhere).
-- Public MCP URL under TLS is typically `https://<host>/mcp`.
+
+### Rebinding to localhost
+
+To stop the app from being reachable directly on a public interface, bind both processes to `127.0.0.1`:
+
+```bash
+.venv/bin/skill-vault web  --host 127.0.0.1 --port 8080
+.venv/bin/skill-vault serve --transport streamable-http --host 127.0.0.1 --port 8100
+```
+
+(Default is `0.0.0.0`; when running behind a proxy on the same host, always use `127.0.0.1`.)
 
 ## Persistence, backup, and restore
 
