@@ -800,6 +800,10 @@ td code {
   }
 
   .detail-title-row {
-    align-items: flex-start;
+    /* Vertically center the heading and any action button. The mobile
+       touch-target rule bumps .btn up to min-height:44px, so top-aligning
+       the row makes the taller button overhang below the heading text.
+       Centering keeps them on a shared midline (matches desktop). */
+    align-items: center;
   }
 }
