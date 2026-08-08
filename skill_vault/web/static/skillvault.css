@@ -835,4 +835,23 @@ td code {
   .actions {
     gap: 0.6rem;
   }
+
+  /* Agent-detail header: the two actions ("Publish new skill" primary and
+     "Delete Agent" danger) used mismatched widths/heights. Stack them as
+     full-width equal rows on mobile so the primary reads clearly first. */
+  .detail-header .button-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+
+  .detail-header .stack button {
+    width: 100%;
+  }
+
+  /* Tabs (Personal / Global) become equal-width full-row segments so the
+     control reads as one unit instead of two loosely-sized buttons. */
+  .tabs .tab-button {
+    flex: 1 1 0;
+  }
 }
