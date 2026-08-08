@@ -12,7 +12,12 @@ from skill_vault.auth import (
     hash_key,
     key_prefix,
 )
-from skill_vault.errors import AuthenticationError, RateLimitError, RevokedKeyError
+from skill_vault.errors import (
+    AuthenticationError,
+    IntegrityError,
+    RateLimitError,
+    RevokedKeyError,
+)
 from skill_vault.search import SearchService
 
 
@@ -64,6 +69,36 @@ def test_onboard_issues_one_key_and_resolves(db):
     assert ctx.is_authenticated
     assert ctx.agent_id == result.agent_id
     assert ctx.key_id == result.key_id
+
+
+def test_agent_name_unique_per_user(db):
+    """A user cannot create two agents with the same name."""
+    auth = _auth(db)
+    create_agent = auth.create_agent
+    create_agent("planner")
+    with pytest.raises(IntegrityError):
+        auth.create_agent("planner")
+    # ...but a different name is fine (and a differently-cased name is distinct)
+    create_agent("helper")
+
+
+def test_agent_name_unique_per_owner_user_but_shared_across_users(db):
+    """Same name is allowed for different owning users, not for the same user."""
+    auth = _auth(db)
+    user_a = auth.create_user("user-a@example.com", "password123")
+    user_b = auth.create_user("user-b@example.com", "password123")
+    auth.create_agent("planner", owner_user_id=user_a)
+    auth.create_agent("planner", owner_user_id=user_b)  # OK: different user
+    with pytest.raises(IntegrityError):
+        auth.create_agent("planner", owner_user_id=user_a)  # dup within user A
+
+
+def test_onboard_respects_duplicate_name(db):
+    """Onboarding propagates the duplicate-name IntegrityError."""
+    auth = _auth(db)
+    auth.onboard("dup")
+    with pytest.raises(IntegrityError):
+        auth.onboard("dup")
 
 
 # ------------------------------------------------------------- scope isolation

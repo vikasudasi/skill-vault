@@ -28,6 +28,7 @@ from typing import cast
 from skill_vault.db import locked
 from skill_vault.errors import (
     AuthenticationError,
+    IntegrityError,
     RateLimitError,
     RevokedKeyError,
 )
@@ -174,11 +175,21 @@ class AuthService:
     def create_agent(self, name: str, owner_user_id: str | None = None) -> str:
         if not name or not name.strip():
             raise AuthenticationError("agent name must not be empty")
+        name = name.strip()
         agent_id = str(uuid.uuid4())
         with locked():
+            # An agent name is unique per owning user (NULL owner = its own group).
+            # App-level check keeps NULL-owner semantics correct (SQLite UNIQUE
+            # treats NULLs as distinct).
+            row = self._db.execute(
+                "SELECT 1 FROM agents WHERE name = ? AND owner_user_id IS ? LIMIT 1",
+                (name, owner_user_id),
+            ).fetchone()
+            if row is not None:
+                raise IntegrityError(f"an agent named {name!r} already exists for this user")
             self._db.execute(
                 "INSERT INTO agents(id, name, owner_user_id) VALUES (?, ?, ?)",
-                (agent_id, name.strip(), owner_user_id),
+                (agent_id, name, owner_user_id),
             )
             self._db.commit()
         return agent_id
