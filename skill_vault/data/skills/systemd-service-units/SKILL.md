@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 20-40 min
 prerequisites: [linux, systemd]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Running Services with systemd

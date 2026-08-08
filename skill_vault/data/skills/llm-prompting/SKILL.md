@@ -7,6 +7,7 @@ complexity: low
 time_estimate: 20-40 min
 prerequisites: [an LLM API or chat tool]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Effective LLM Prompting

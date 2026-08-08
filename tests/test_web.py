@@ -253,6 +253,37 @@ def test_global_browse_shows_results_and_badge(tmp_path: Path) -> None:
     assert "badge-public" in response.text
 
 
+def test_browse_hides_confidence_without_query_shows_with_query(tmp_path: Path) -> None:
+    from skill_vault.models import SkillCard
+
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    services.registry.admin_publish(agent_id, _skill("Global Searchable"), "global")
+
+    # browsing with no query -> list_global yields score=0 -> no misleading 0%
+    empty = client.get("/browse")
+    assert empty.status_code == 200
+    assert "Global Searchable" in empty.text
+    assert "confidence" not in empty.text
+
+    # during an actual search the relevance confidence IS shown
+    services.registry.search = lambda *a, **k: [
+        SkillCard(
+            id="x",
+            name="Global Searchable",
+            description="d",
+            tags=[],
+            trust="public",
+            score=0.85,
+            version=1,
+        )
+    ]
+    with_q = client.get("/browse?q=whatever")
+    assert with_q.status_code == 200
+    assert "confidence" in with_q.text
+    assert "85%" in with_q.text
+
+
 def test_skill_detail_shows_metadata_and_body(tmp_path: Path) -> None:
     client, services = _client(tmp_path)
     agent_id = services.auth.create_agent("publisher")

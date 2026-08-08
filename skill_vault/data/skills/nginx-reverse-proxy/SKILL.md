@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 30-60 min
 prerequisites: [linux, nginx]
 source: Skill Vault curated library
+verify: true
 ---
 
 # nginx as a Reverse Proxy

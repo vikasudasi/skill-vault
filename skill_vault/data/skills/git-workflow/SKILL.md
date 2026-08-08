@@ -7,6 +7,7 @@ complexity: low
 time_estimate: 20-40 min
 prerequisites: [git]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Safe Git Branch Workflow

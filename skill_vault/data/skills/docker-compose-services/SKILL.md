@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 30-60 min
 prerequisites: [docker, docker compose]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Docker Compose for Multi-Service Apps

@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 30-60 min
 prerequisites: [python, sqlite3]
 source: Skill Vault curated library
+verify: true
 ---
 
 # SQLite Optimization for Application Use

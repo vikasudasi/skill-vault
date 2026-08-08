@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 60-120 min
 prerequisites: [python, an embedding model, an LLM API]
 source: Skill Vault curated library
+verify: true
 ---
 
 # RAG: Retrieval-Augmented Generation

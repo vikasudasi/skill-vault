@@ -7,6 +7,7 @@ complexity: low
 time_estimate: 20-40 min
 prerequisites: [python 3.11]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Data Modeling with Dataclasses + Pydantic

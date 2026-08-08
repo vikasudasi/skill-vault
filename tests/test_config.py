@@ -38,7 +38,23 @@ def test_defaults(monkeypatch):
         assert s.admin_username == "admin"
         assert s.admin_password == "a-strong-secret"
         assert s.curator_key is None
+        assert s.curator_public_key is None
         assert s.pgvector_dsn is None
+    finally:
+        get_settings.cache_clear()
+
+
+def test_curator_public_key_derived_from_private_key(monkeypatch):
+    from skill_vault.trust import generate_curator_keypair
+
+    priv, pub = generate_curator_keypair()
+    monkeypatch.setenv("SKILL_VAULT_CURATOR_KEY", priv)
+    monkeypatch.setenv("SKILL_VAULT_ADMIN_PASSWORD", "a-strong-secret")
+    get_settings.cache_clear()
+    try:
+        s = get_settings()
+        assert s.curator_key == priv
+        assert s.curator_public_key == pub
     finally:
         get_settings.cache_clear()
 

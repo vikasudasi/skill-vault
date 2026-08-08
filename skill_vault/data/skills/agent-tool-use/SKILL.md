@@ -7,6 +7,7 @@ complexity: high
 time_estimate: 60-120 min
 prerequisites: [an LLM with function-calling, python or js]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Designing Agents that Use Tools

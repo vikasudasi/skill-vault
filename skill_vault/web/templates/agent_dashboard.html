@@ -53,7 +53,7 @@
         <div>
           <a href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
           <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-          <span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>
+          {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
           <p>{{ skill.description }}</p>
         </div>
       </li>

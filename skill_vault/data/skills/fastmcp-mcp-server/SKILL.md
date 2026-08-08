@@ -7,6 +7,7 @@ complexity: high
 time_estimate: 60-120 min
 prerequisites: [python 3.11, fastmcp, understanding of MCP]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Building MCP Servers with FastMCP

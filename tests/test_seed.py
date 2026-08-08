@@ -15,7 +15,7 @@ from skill_vault.auth import AuthService
 from skill_vault.bootstrap import Services
 from skill_vault.db import connect, run_migrations
 from skill_vault.search import SearchService
-from skill_vault.seed import discover_seed_dir, parse_skill_file, seed_skills
+from skill_vault.seed import discover_seed_dir, parse_skill_file, recheck_signatures, seed_skills
 from skill_vault.service import RegistryService
 from skill_vault.trust import TIER_PUBLIC, TIER_VERIFIED, TrustService, generate_curator_keypair
 
@@ -50,13 +50,19 @@ def test_parse_skill_file_parses_frontmatter():
     assert seed.skill.body.startswith("# Safe Git Branch Workflow")
     assert seed.skill.meta["source"] == "Skill Vault curated library"
     assert seed.skill.meta["complexity"] == "low"
-    assert seed.verify is False
+    assert seed.verify is True  # all curated seed skills are now verify-eligible
 
 
 def test_parse_signed_skill_has_verify_flag():
     path = SEED_SKILLS / "python-cli-typer" / "SKILL.md"
     seed = parse_skill_file(path)
     assert seed.verify is True
+
+
+def test_parse_verify_defaults_to_false(tmp_path):
+    plain = tmp_path / "SKILL.md"
+    plain.write_text("---\nname: x\ndescription: d\nsource: s\n---\n# body\n")
+    assert parse_skill_file(plain).verify is False
 
 
 def test_parse_requires_name(tmp_path):
@@ -129,12 +135,52 @@ def test_seed_signs_verified_skill_with_curator_key(tmp_path):
     assert detail.trust == TIER_VERIFIED
     assert detail.verified is True
 
-    # normal skills stay public
-    g = services.db.execute(
-        "SELECT v.id AS vid FROM skills s JOIN skill_versions v ON v.id=s.current_version_id "
-        "WHERE s.name='git-workflow'"
-    ).fetchone()
-    assert services.trust.resolve_tier(g["vid"]) == TIER_PUBLIC
+    # every curated seed skill (all verify:true now) resolves to verified
+    for d in sorted(p for p in SEED_SKILLS.iterdir() if p.is_dir()):
+        r = services.db.execute(
+            "SELECT v.id AS vid FROM skills s JOIN skill_versions v "
+            "ON v.id=s.current_version_id WHERE s.name=?",
+            (d.name,),
+        ).fetchone()
+        assert services.trust.resolve_tier(r["vid"]) == TIER_VERIFIED, d.name
+
+
+def test_recheck_signatures_verifies_existing_unsigned_seed_skills(tmp_path):
+    priv, pub = generate_curator_keypair()
+    services = _services(tmp_path, known_public_keys=[pub])
+    # seed unsigned first -> all 17 exist in DB, all public
+    seed_skills(services, SEED_SKILLS, curator_key=None)
+    for d in sorted(p for p in SEED_SKILLS.iterdir() if p.is_dir()):
+        r = services.db.execute(
+            "SELECT v.id AS vid FROM skills s JOIN skill_versions v "
+            "ON v.id=s.current_version_id WHERE s.name=?",
+            (d.name,),
+        ).fetchone()
+        assert services.trust.resolve_tier(r["vid"]) == TIER_PUBLIC, d.name
+
+    # re-sign -> all existing seed skills flip to verified
+    count = recheck_signatures(services, SEED_SKILLS, curator_key=priv)
+    assert count == 17, count
+    for d in sorted(p for p in SEED_SKILLS.iterdir() if p.is_dir()):
+        r = services.db.execute(
+            "SELECT v.id AS vid FROM skills s JOIN skill_versions v "
+            "ON v.id=s.current_version_id WHERE s.name=?",
+            (d.name,),
+        ).fetchone()
+        assert services.trust.resolve_tier(r["vid"]) == TIER_VERIFIED, d.name
+        t = services.db.execute(
+            "SELECT signature, public_key, signed_by FROM trust WHERE skill_version_id=?",
+            (r["vid"],),
+        ).fetchone()
+        assert t["signature"], d.name
+        assert t["public_key"] == pub
+        assert t["signed_by"] == "Skill Vault curated library"
+
+
+def test_recheck_signatures_without_curator_key_is_noop(tmp_path):
+    services = _services(tmp_path)
+    seed_skills(services, SEED_SKILLS, curator_key=None)
+    assert recheck_signatures(services, SEED_SKILLS, curator_key=None) == 0
 
 
 def test_seed_verify_flag_without_curator_key_stays_unverified(tmp_path):

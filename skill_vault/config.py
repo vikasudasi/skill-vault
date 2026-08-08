@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from skill_vault.trust import public_key_from_private_key
+
 
 @dataclass(slots=True)
 class Settings:
@@ -21,6 +23,18 @@ class Settings:
     rate_limit_per_minute: int
     admin_username: str
     admin_password: str
+
+    @property
+    def curator_public_key(self) -> str | None:
+        """The curator's public key (base64), derived from the private signing key.
+
+        Derived so only one secret env var (``SKILL_VAULT_CURATOR_KEY``) needs to be
+        set; the public key is what gets registered in the trust policy's known-keys
+        set so valid signatures resolve to tier ``verified``.
+        """
+        if not self.curator_key:
+            return None
+        return public_key_from_private_key(self.curator_key)
 
 
 @lru_cache(maxsize=1)

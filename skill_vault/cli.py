@@ -18,7 +18,7 @@ from skill_vault.bootstrap import build_services
 from skill_vault.config import get_settings
 from skill_vault.db import connect, locked, run_migrations
 from skill_vault.search import Embedder, SearchService, build_store
-from skill_vault.seed import discover_seed_dir, seed_skills
+from skill_vault.seed import discover_seed_dir, recheck_signatures, seed_skills
 from skill_vault.server import create_server
 from skill_vault.trust import (
     TrustService,
@@ -246,6 +246,39 @@ def curator_gen_key_command() -> None:
     console.print(private_key)
     console.print("[bold green]PUBLIC (share, for verification):[/bold green]")
     console.print(public_key)
+
+
+@curator_group.command(
+    "re-sign",
+    help="Re-sign existing bootstrapped global seed skills so they resolve to 'verified'.",
+)
+@click.option(
+    "--dir",
+    "seed_dir",
+    default=None,
+    type=str,
+    help="Directory of SKILL.md files (default: settings.seed_dir).",
+)
+@click.option("--db-path", default=None, type=str, help="Path to the SQLite database file.")
+@click.option(
+    "--curator-key",
+    default=None,
+    type=str,
+    help="ed25519 private key (base64) to sign with (overrides env).",
+)
+def curator_resign_command(seed_dir: str | None, db_path: str | None, curator_key: str | None) -> None:
+    settings = get_settings()
+    resolved_db_path = db_path or settings.db_path
+    service_settings = replace(settings, db_path=resolved_db_path)
+    services = build_services(service_settings)
+    selected_seed_dir = seed_dir or settings.seed_dir
+    effective_curator_key = curator_key if curator_key is not None else settings.curator_key
+    if not effective_curator_key:
+        raise click.ClickException(
+            "A curator private key is required: set SKILL_VAULT_CURATOR_KEY or pass --curator-key."
+        )
+    count = recheck_signatures(services, selected_seed_dir, effective_curator_key)
+    err_console.print(f"Re-signed {count} existing seed skill(s) as verified.")
 
 
 @cli.command("serve", help="Run the Skill Vault MCP server.")

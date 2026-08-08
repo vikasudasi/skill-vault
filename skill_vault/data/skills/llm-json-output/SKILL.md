@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 30-60 min
 prerequisites: [an LLM API with JSON support]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Reliable Structured JSON from LLMs

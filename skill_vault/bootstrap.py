@@ -64,6 +64,16 @@ def _db_path(db: sqlite3.Connection) -> str | None:
     return path
 
 
+def _known_public_keys(settings: Settings) -> list[str]:
+    """Curator public key(s) the host trusts for ``verified`` signatures.
+
+    Empty when no curator key is configured, so unsigned skills keep their
+    current default (``public``) tier.
+    """
+    key = settings.curator_public_key
+    return [key] if key else []
+
+
 def build_services(settings: Settings | None = None) -> Services:
     """Connect DB, run migrations, and construct auth/search/trust/registry."""
     settings = settings or get_settings()
@@ -75,7 +85,11 @@ def build_services(settings: Settings | None = None) -> Services:
     store = build_store(settings.vector_backend, settings.db_path, settings.pgvector_dsn)
     embedder = Embedder(settings.embed_model)
     search = SearchService(cast(sqlite3.Connection, db), store, embedder)
-    trust = TrustService(cast(sqlite3.Connection, db), allow_tiers=settings.trust_allow.split(","))
+    trust = TrustService(
+        cast(sqlite3.Connection, db),
+        allow_tiers=settings.trust_allow.split(","),
+        known_public_keys=_known_public_keys(settings),
+    )
     registry = RegistryService(db, auth=auth, search=search, trust=trust)
     return Services(
         db=cast(sqlite3.Connection, db),

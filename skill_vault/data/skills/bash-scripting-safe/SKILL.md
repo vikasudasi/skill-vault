@@ -7,6 +7,7 @@ complexity: low
 time_estimate: 20-40 min
 prerequisites: [linux or macos terminal]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Safe Bash Scripting

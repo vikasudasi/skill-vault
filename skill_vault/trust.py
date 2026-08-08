@@ -118,6 +118,13 @@ def verify(payload: bytes, signature_b64: str, public_key_b64: str) -> bool:
         return False
 
 
+def public_key_from_private_key(private_key_b64: str) -> str:
+    """Derive the base64 ed25519 public key from a base64 private key."""
+    ed, _ = _ed25519()
+    sk = ed.Ed25519PrivateKey.from_private_bytes(_unb64(private_key_b64))
+    return _b64(sk.public_key().public_bytes_raw())
+
+
 def _b64(raw: bytes) -> str:
     return base64.b64encode(raw).decode("ascii")
 

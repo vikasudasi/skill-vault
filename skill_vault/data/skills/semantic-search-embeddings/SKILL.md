@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 45-90 min
 prerequisites: [python, an embedding model]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Semantic Search with Embeddings

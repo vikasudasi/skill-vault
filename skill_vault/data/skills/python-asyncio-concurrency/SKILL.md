@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 45-90 min
 prerequisites: [python 3.11]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Correct Python asyncio

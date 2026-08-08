@@ -13,6 +13,7 @@ from skill_vault.trust import (
     canonical_payload,
     content_hash,
     generate_curator_keypair,
+    public_key_from_private_key,
     sign,
     verify,
 )
@@ -64,6 +65,17 @@ def test_verify_rejects_wrong_key():
     _, other_pub = generate_curator_keypair()
     sig = sign(b"payload", priv)
     assert verify(b"payload", sig, other_pub) is False
+
+
+def test_public_key_derived_from_private_key():
+    priv, pub = generate_curator_keypair()
+    assert public_key_from_private_key(priv) == pub
+
+
+def test_compute_tier_verified_with_derived_key():
+    priv, pub = generate_curator_keypair()
+    svc = TrustService(None, known_public_keys=[public_key_from_private_key(priv)])
+    assert svc.compute_tier(owner_agent_id=None, signature="s", public_key=pub) == TIER_VERIFIED
 
 
 def test_compute_tier_signed_known_key_is_verified():

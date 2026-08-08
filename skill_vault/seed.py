@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-import base64
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from skill_vault.models import SkillInput
 from skill_vault.service import _build_payload
-from skill_vault.trust import sign
+from skill_vault.trust import (
+    TIER_VERIFIED,
+    canonical_payload,
+    public_key_from_private_key,
+    sign,
+)
 
 
 @dataclass(slots=True)
@@ -90,7 +94,7 @@ def seed_skills(services: Any, seed_dir: str | Path, curator_key: str | None) ->
         if seed_skill.verify and curator_key:
             payload = _build_payload(seed_skill.skill)
             signature = sign(payload, curator_key)
-            public_key = _public_key_from_private_key(curator_key)
+            public_key = public_key_from_private_key(curator_key)
             signed_by = seed_skill.source
 
         services.registry.admin_publish_seed(
@@ -102,6 +106,52 @@ def seed_skills(services: Any, seed_dir: str | Path, curator_key: str | None) ->
         published += 1
 
     return published
+
+
+def recheck_signatures(services: Any, seed_dir: str | Path, curator_key: str | None) -> int:
+    """Re-sign existing bootstrapped global seed skills so they resolve to ``verified``.
+
+    Idempotent: for every seed file flagged ``verify: true`` whose skill already exists
+    in the DB as a global skill, the canonical payload is recomputed from the currently
+    stored version and a ``verified`` trust record is upserted (record() is idempotent).
+    Skills not present in the DB are ignored, so this is safe to re-run.
+    """
+    if not curator_key:
+        return 0
+    resolved_seed_dir = discover_seed_dir(seed_dir)
+    public_key = public_key_from_private_key(curator_key)
+    count = 0
+    for file_path in _seed_files(resolved_seed_dir):
+        seed_skill = parse_skill_file(file_path)
+        if not seed_skill.verify:
+            continue
+        existing = services.db.execute(
+            "SELECT v.id AS vid, v.name, v.description, v.tags, v.triggers, "
+            "v.meta_json, v.body FROM skills s JOIN skill_versions v "
+            "ON v.id = s.current_version_id WHERE s.name = ? AND s.visibility = 'global' "
+            "LIMIT 1",
+            (seed_skill.skill.name.strip(),),
+        ).fetchone()
+        if existing is None:
+            continue
+        payload = canonical_payload(
+            name=str(existing["name"]),
+            description=str(existing["description"]),
+            tags=json.loads(existing["tags"] or "[]"),
+            triggers=json.loads(existing["triggers"] or "[]"),
+            meta_json=json.loads(existing["meta_json"] or "{}"),
+            body=str(existing["body"]),
+        )
+        signature = sign(payload, curator_key)
+        services.trust.record(
+            str(existing["vid"]),
+            TIER_VERIFIED,
+            signature=signature,
+            public_key=public_key,
+            signed_by=seed_skill.source,
+        )
+        count += 1
+    return count
 
 
 def _first_component(path: Path) -> str | None:
@@ -182,9 +232,3 @@ def _optional_bool(metadata: dict[str, object], key: str, *, default: bool, path
     if isinstance(value, bool):
         return value
     raise ValueError(f"{path}: frontmatter field '{key}' must be a boolean")
-
-
-def _public_key_from_private_key(private_key_b64: str) -> str:
-    private_key_bytes = base64.b64decode(private_key_b64.encode("ascii"))
-    private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
-    return base64.b64encode(private_key.public_key().public_bytes_raw()).decode("ascii")

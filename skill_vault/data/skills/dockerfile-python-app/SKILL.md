@@ -7,6 +7,7 @@ complexity: medium
 time_estimate: 30-60 min
 prerequisites: [docker, a python project]
 source: Skill Vault curated library
+verify: true
 ---
 
 # Dockerfile for a Python App
