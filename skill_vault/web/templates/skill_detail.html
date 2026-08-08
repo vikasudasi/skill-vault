@@ -1,38 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Skill Detail{% endblock %}
+{% block title %}{{ skill.name }} — Skill Detail{% endblock %}
 {% block content %}
-<section class="panel">
-  <h2>{{ skill.name }}</h2>
+<section class="panel detail-header">
+  <div class="detail-title-row">
+    <h2 class="detail-name">{{ skill.name }}</h2>
+    <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+    {% if skill.verified %}
+    <span class="badge badge-verified" title="Content-addressed and signed">verified</span>
+    {% else %}
+    <span class="badge badge-public" title="Not signed">not signed</span>
+    {% endif %}
+  </div>
+  <p class="muted detail-id"><code>{{ skill.id }}</code></p>
   <p>{{ skill.description }}</p>
-  <p><span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span></p>
-  <dl>
-    <dt>Skill ID</dt>
-    <dd><code>{{ skill.id }}</code></dd>
-    <dt>Version</dt>
-    <dd>{{ skill.version }}</dd>
-    <dt>Owner</dt>
-    <dd>{{ skill.owner or "global" }}</dd>
-    <dt>Tags</dt>
-    <dd>{{ skill.tags | join(", ") if skill.tags else "none" }}</dd>
-    <dt>Content hash</dt>
-    <dd><code>{{ skill.content_hash }}</code></dd>
-    <dt>Signature</dt>
-    <dd>{% if skill.verified %}verified{% else %}not signed{% endif %}</dd>
-    <dt>Integrity</dt>
-    <dd>{{ integrity_status }}</dd>
-    <dt>Created</dt>
-    <dd>{{ created_at or "unknown" }}</dd>
+</section>
+
+<section class="panel">
+  <h3>Metadata</h3>
+  <dl class="meta-list">
+    <div class="meta-item">
+      <dt>Skill ID</dt>
+      <dd><code>{{ skill.id }}</code></dd>
+    </div>
+    <div class="meta-item">
+      <dt>Version</dt>
+      <dd>{{ skill.version }}</dd>
+    </div>
+    <div class="meta-item">
+      <dt>Owner</dt>
+      <dd>{{ skill.owner or "global" }}</dd>
+    </div>
+    <div class="meta-item">
+      <dt>Tags</dt>
+      <dd>
+        {% if skill.tags %}
+          {% for tag in skill.tags %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+        {% else %}none{% endif %}
+      </dd>
+    </div>
+    <div class="meta-item">
+      <dt>Signature</dt>
+      <dd>{% if skill.verified %}verified{% else %}not signed{% endif %}</dd>
+    </div>
+    <div class="meta-item">
+      <dt>Integrity</dt>
+      <dd>{{ integrity_status }}</dd>
+    </div>
+    <div class="meta-item">
+      <dt>Content hash</dt>
+      <dd><code>{{ skill.content_hash }}</code></dd>
+    </div>
+    <div class="meta-item">
+      <dt>Created</dt>
+      <dd>{{ created_at or "unknown" }}</dd>
+    </div>
   </dl>
 </section>
 
 <section class="panel">
   <h3>Skill file</h3>
   {% if skill.body %}
-  <div class="skill-body">{{ skill.body | markdown | safe }}</div>
-  <details class="raw-body">
-    <summary>View raw skill file</summary>
-    <pre class="code-block">{{ skill.body }}</pre>
-  </details>
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab-button is-active" data-tab-target="tab-body-rendered" role="tab">Rendered</button>
+    <button type="button" class="tab-button" data-tab-target="tab-body-raw" role="tab">Raw</button>
+  </div>
+  <div id="tab-body-rendered" class="tab-panel is-active" role="tabpanel">
+    <div class="skill-body">{{ skill.body | markdown | safe }}</div>
+  </div>
+  <div id="tab-body-raw" class="tab-panel" role="tabpanel">
+    <div class="code-toolbar">
+      <span class="muted">Raw skill file (markdown source)</span>
+      <button type="button" data-copy-target="raw-body">Copy</button>
+    </div>
+    <pre id="raw-body" class="code-block"><code class="language-markdown">{{ skill.body }}</code></pre>
+  </div>
   {% else %}
   <p class="muted">No body content.</p>
   {% endif %}

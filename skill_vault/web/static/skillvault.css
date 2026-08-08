@@ -416,6 +416,80 @@ td {
   white-space: pre;
 }
 
+/* --- Skill detail page ---------------------------------------------------- */
+.detail-header {
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.detail-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-name {
+  margin: 0;
+}
+
+.detail-id {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.meta-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+.meta-item {
+  border-bottom: 1px solid rgb(var(--sv-border));
+  padding-bottom: 0.5rem;
+}
+
+.meta-item dt {
+  color: rgb(var(--sv-muted));
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.15rem;
+}
+
+.meta-item dd {
+  margin: 0;
+}
+
+.meta-item dd code {
+  word-break: break-all;
+}
+
+.tag-chip {
+  display: inline-block;
+  background: rgb(var(--sv-public-bg));
+  color: rgb(var(--sv-public-fg));
+  border-radius: var(--radius-full);
+  padding: 0.05rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.skill-body {
+  line-height: 1.55;
+}
+
+.skill-body pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
 /* Search-as-you-type (browse) helpers */
 .search-row {
   display: flex;
@@ -468,5 +542,13 @@ td {
 
   .search-row {
     flex-wrap: wrap;
+  }
+
+  .meta-list {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-title-row {
+    align-items: flex-start;
   }
 }

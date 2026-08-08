@@ -120,6 +120,10 @@ fromEventButtons("[data-tab-target]", function (button) {
     panel.classList.add("is-active");
   }
   button.classList.add("is-active");
+  // Re-run highlighting so code blocks in the newly revealed panel (e.g. the
+  // raw skill view) get syntax highlighting. runHighlight() skips nodes it has
+  // already processed via the data-highlighted guard, so this is idempotent.
+  runHighlight();
 });
 
 function fromEventButtons(selector, handler) {
