@@ -806,4 +806,33 @@ td code {
        Centering keeps them on a shared midline (matches desktop). */
     align-items: center;
   }
+
+  /* Section heading reads a touch larger on small screens for clearer
+     hierarchy above the list. */
+  .detail-name {
+    font-size: 1.25rem;
+    line-height: 1.35;
+  }
+
+  /* Primary action beside a section heading (e.g. "Onboard a new agent")
+     becomes a full-width, high-presence CTA on mobile instead of a small
+     chip tucked next to the title. flex-basis:100% drops it onto its own
+     line because the row already wraps (does not affect agent-detail's
+     title row, which holds a badge — not a .btn — so that stays inline). */
+  .detail-title-row .btn {
+    flex-basis: 100%;
+    justify-content: center;
+    font-weight: 700;
+    padding: 0.7rem 1rem;
+  }
+
+  /* More breathing room between stacked list rows and a wider gap between
+     the equal-width action buttons for easier tapping on mobile. */
+  .list li {
+    padding: 1rem 0;
+  }
+
+  .actions {
+    gap: 0.6rem;
+  }
 }
