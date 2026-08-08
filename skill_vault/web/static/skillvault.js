@@ -14,15 +14,38 @@ fromEventButtons("[data-copy-target]", function (button) {
   if (!text) {
     return;
   }
-  if (!navigator.clipboard || !navigator.clipboard.writeText) {
-    button.textContent = "Clipboard unavailable";
+  const copied = function () {
+    button.textContent = "Copied";
+  };
+  const failed = function () {
+    button.textContent = "Copy failed";
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(copied).catch(failed);
     return;
   }
-  navigator.clipboard.writeText(text).then(function () {
-    button.textContent = "Copied";
-  }).catch(function () {
-    button.textContent = "Copy failed";
-  });
+  // Fallback for non-secure (HTTP) contexts where the Clipboard API is
+  // unavailable: select a hidden textarea and execCommand("copy").
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch (e) {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  if (ok) {
+    copied();
+  } else {
+    failed();
+  }
 });
 
 fromEventButtons("[data-confirm]", function (button, event) {
