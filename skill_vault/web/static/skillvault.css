@@ -182,15 +182,23 @@ button {
 .list li {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.5rem;
   border-top: 1px solid rgb(var(--sv-border));
   padding: 0.75rem 0;
+}
+
+.list li > :first-child {
+  flex: 1 1 15rem;
+  min-width: 0;
 }
 
 .actions,
 .inline {
   display: inline-flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .tabs {
@@ -247,6 +255,19 @@ td {
   text-align: left;
 }
 
+th code,
+td code {
+  word-break: break-all;
+}
+
+/* Wrappable horizontal-scroll container for wide tables (e.g. agent API
+   keys). Keeps tables at natural column widths but lets narrow screens
+   scroll the table instead of forcing horizontal page overflow. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .public-header {
   border-bottom: 1px solid #1e293b;
 }
@@ -263,6 +284,27 @@ td {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 700;
+}
+
+/* Make the header nav a wrapping flex row so links + email + actions never
+   overflow the viewport on narrow screens (they wrap onto their own lines). */
+.public-nav nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  min-width: 0;
+}
+
+/* Long user emails in the header: truncate on desktop, stack full-width and
+   break cleanly on mobile instead of blowing past the header edge. */
+.public-nav nav .muted {
+  display: inline-block;
+  max-width: min(44vw, 16rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 /* Keep nav buttons (e.g. Logout) the same height/appearance as the nav
@@ -313,7 +355,7 @@ td {
    accent on the emphasized phrase. Falls back to the accent colour if gradient
    text isn't supported. */
 .hero-headline {
-  font-size: 2.4rem;
+  font-size: clamp(1.8rem, 2.5vw + 1rem, 2.4rem);
   line-height: 1.15;
   letter-spacing: -0.01em;
   font-weight: 700;
@@ -454,6 +496,12 @@ td {
 
 .detail-id {
   margin: 0.25rem 0 0.75rem;
+}
+
+.detail-id code {
+  word-break: break-all;
+  display: inline-block;
+  max-width: 100%;
 }
 
 .meta-list {
@@ -632,13 +680,74 @@ td {
   border: 0;
 }
 
+/* --- Responsive breakpoints ----------------------------------------------- */
+
+/* Tablet / small-laptop edge cases (e.g. 768px): let form/nav rows wrap so
+   they don't crowd at mid widths. */
+@media (max-width: 768px) {
+  .form-actions,
+  .pager {
+    flex-wrap: wrap;
+  }
+
+  .panel-auth {
+    margin: 1rem auto;
+  }
+}
+
 @media (max-width: 640px) {
   .container {
     padding: 0.8rem;
   }
 
+  /* Header: keep brand on a row, drop the nav to its own full-width wrapped
+     row so links + email + actions never overflow the viewport. */
+  .public-nav {
+    align-items: flex-start;
+  }
+
+  .public-nav nav {
+    width: 100%;
+  }
+
+  /* Long user email: break onto its own full-width row on mobile. */
+  .public-nav nav .muted {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
   .page-header a {
     margin-right: 0.6rem;
+  }
+
+  /* Enlarge touch targets on small screens (>= Apple's 44px guideline). */
+  .public-nav nav a,
+  .theme-toggle,
+  .btn,
+  .button-link,
+  .pager a,
+  .tab-button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* List rows stack title + actions vertically; action buttons go full-width
+     for easier tapping. */
+  .list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions .btn,
+  .actions button {
+    flex: 1 1 auto;
+    width: 100%;
   }
 
   .code-toolbar {
@@ -649,15 +758,21 @@ td {
     flex-wrap: wrap;
   }
 
+  /* Copy rows (e.g. onboarding raw key) stack the field above the button. */
+  .copy-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .copy-row button {
+    width: 100%;
+  }
+
   .meta-list {
     grid-template-columns: 1fr;
   }
 
   .detail-title-row {
     align-items: flex-start;
-  }
-
-  .hero-headline {
-    font-size: 1.8rem;
   }
 }
