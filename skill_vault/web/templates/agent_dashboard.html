@@ -100,17 +100,17 @@
     <tbody>
       {% for key in keys %}
       <tr>
-        <td><code>{{ key.key_id }}</code></td>
-        <td><code>{{ key.key_prefix }}</code></td>
-        <td>{{ key.last_used_at or "never" }}</td>
-        <td>
+        <td data-label="Key ID"><code>{{ key.key_id }}</code></td>
+        <td data-label="Prefix"><code>{{ key.key_prefix }}</code></td>
+        <td data-label="Last used">{{ key.last_used_at or "never" }}</td>
+        <td data-label="Status">
           {% if key.revoked_at %}
           <span class="badge badge-public">revoked</span>
           {% else %}
           <span class="badge badge-verified">active</span>
           {% endif %}
         </td>
-        <td>
+        <td data-label="Actions">
           <div class="actions">
             <form method="post" action="/agents/{{ agent_id }}/keys/{{ key.key_id }}/rotate" class="inline">
               <button type="submit" class="btn btn-secondary">Rotate</button>

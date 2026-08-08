@@ -854,4 +854,65 @@ td code {
   .tabs .tab-button {
     flex: 1 1 0;
   }
+
+  /* API-keys view: a 5-column table is wider than a phone, so instead of
+     forcing sideways scroll to reach Status / Actions, break it into stacked
+     key "cards". Each cell shows its data-label above the value, the header
+     row is hidden, and Actions gets its own card row with full-width buttons. */
+  .table-scroll {
+    overflow-x: visible;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .table-scroll thead {
+    display: none;
+  }
+
+  .table-scroll table,
+  .table-scroll tbody,
+  .table-scroll tr,
+  .table-scroll td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Each key becomes its own card: hairline separators between cells. */
+  .table-scroll tbody tr {
+    border: 1px solid rgb(var(--sv-border));
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .table-scroll td {
+    border-top: 1px solid rgb(var(--sv-border));
+    padding: 0.5rem 0;
+  }
+
+  .table-scroll td:first-child {
+    border-top: none;
+  }
+
+  /* Show the column label above each value, muted so the value leads. */
+  .table-scroll td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgb(var(--sv-muted));
+    margin-bottom: 0.15rem;
+  }
+
+  /* Long key id can still wrap; avoid page overflow. */
+  .table-scroll td code {
+    word-break: break-all;
+  }
+
+  /* Actions sit on their own line as full-width equal buttons. */
+  .table-scroll td[data-label="Actions"] .actions {
+    margin-top: 0.25rem;
+  }
 }
