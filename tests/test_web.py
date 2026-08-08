@@ -444,3 +444,49 @@ def test_superuser_sees_all_agents(tmp_path: Path) -> None:
     nobody = services.auth.create_agent("seed-agent")
     page = client.get(f"/agents/{nobody}")
     assert page.status_code == 200
+
+
+def test_superuser_toggles_super_agent_flag(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path, superuser=True)
+    agent_id = services.auth.create_agent("toggle-me")
+    assert (
+        services.db.execute(
+            "SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)
+        ).fetchone()["is_super_agent"]
+        == 0
+    )
+
+    promote = client.post(
+        f"/agents/{agent_id}/super", data={"is_super": "1"}, follow_redirects=False
+    )
+    assert promote.status_code == 303
+    assert (
+        services.db.execute(
+            "SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)
+        ).fetchone()["is_super_agent"]
+        == 1
+    )
+
+    demote = client.post(
+        f"/agents/{agent_id}/super", data={"is_super": "0"}, follow_redirects=False
+    )
+    assert demote.status_code == 303
+    assert (
+        services.db.execute(
+            "SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)
+        ).fetchone()["is_super_agent"]
+        == 0
+    )
+
+
+def test_non_superuser_cannot_toggle_super_agent_flag(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path, superuser=False)
+    agent_id = services.auth.create_agent("protected")
+    response = client.post(f"/agents/{agent_id}/super", data={"is_super": 1})
+    assert response.status_code == 403
+    assert (
+        services.db.execute(
+            "SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)
+        ).fetchone()["is_super_agent"]
+        == 0
+    )

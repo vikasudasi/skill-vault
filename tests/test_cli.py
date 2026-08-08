@@ -334,6 +334,53 @@ def test_agent_create_issues_no_key(monkeypatch, tmp_path: Path) -> None:
         con.close()
 
 
+def test_agent_super_promote_demote(monkeypatch, tmp_path: Path) -> None:
+    db_path = tmp_path / "a.db"
+    conn = connect(str(db_path))
+    run_migrations(conn, "migrations")
+    conn.close()
+    _set_db_env(monkeypatch, db_path)
+    runner = CliRunner()
+
+    created = runner.invoke(cli, ["agent", "create", "--name", "superable"])
+    assert created.exit_code == 0
+    agent_id = created.output.split("Created agent:")[1].strip()
+
+    # default (off)
+    con = sqlite3.connect(str(db_path))
+    flag = con.execute("SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)).fetchone()[0]
+    con.close()
+    assert flag == 0
+
+    prom = runner.invoke(cli, ["agent", "super-agent", "--agent-id", agent_id, "--on"])
+    assert prom.exit_code == 0
+    assert "super agent" in prom.output
+    con = sqlite3.connect(str(db_path))
+    flag = con.execute("SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)).fetchone()[0]
+    con.close()
+    assert flag == 1
+
+    dem = runner.invoke(cli, ["agent", "super-agent", "--agent-id", agent_id, "--off"])
+    assert dem.exit_code == 0
+    assert "normal agent" in dem.output
+    con = sqlite3.connect(str(db_path))
+    flag = con.execute("SELECT is_super_agent FROM agents WHERE id = ?", (agent_id,)).fetchone()[0]
+    con.close()
+    assert flag == 0
+
+
+def test_agent_super_unknown_agent_errors(monkeypatch, tmp_path: Path) -> None:
+    db_path = tmp_path / "a.db"
+    conn = connect(str(db_path))
+    run_migrations(conn, "migrations")
+    conn.close()
+    _set_db_env(monkeypatch, db_path)
+    runner = CliRunner()
+    result = runner.invoke(cli, ["agent", "super-agent", "--agent-id", "missing-id", "--on"])
+    assert result.exit_code != 0
+    assert "No agent found" in result.output
+
+
 def test_agent_keys_rotate_revoke(monkeypatch, tmp_path: Path) -> None:
     db_path = tmp_path / "a.db"
     conn = connect(str(db_path))

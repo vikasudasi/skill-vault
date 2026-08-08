@@ -69,7 +69,7 @@ def dashboard_home(request: Request) -> Response:
     with locked():
         if is_superuser:
             agents = services.db.execute(
-                "SELECT id, name, created_at FROM agents ORDER BY created_at DESC"
+                "SELECT id, name, created_at, is_super_agent FROM agents ORDER BY created_at DESC"
             ).fetchall()
         else:
             agents = services.db.execute(
@@ -327,6 +327,23 @@ def revoke_key(request: Request, agent_id: str, key_id: str) -> RedirectResponse
     except SkillVaultError as exc:
         _raise_http(exc)
     return RedirectResponse(url=f"/agents/{agent_id}", status_code=303)
+
+
+@router.post(
+    "/agents/{agent_id}/super",
+    dependencies=[Depends(require_user)],
+)
+def toggle_super_agent(
+    request: Request, agent_id: str, is_super: int = Form(...)
+) -> RedirectResponse:
+    """Superuser-only toggle of an agent's super-agent flag."""
+    services = _services(request)
+    user = _current_user(request)
+    if not bool(user["superuser"]):
+        raise HTTPException(status_code=403, detail="superuser required to change agent flags")
+    with locked():
+        services.auth.set_super_agent(agent_id, bool(is_super))
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 @router.get("/browse", response_class=HTMLResponse)

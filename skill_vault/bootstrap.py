@@ -90,7 +90,9 @@ def build_services(settings: Settings | None = None) -> Services:
         allow_tiers=settings.trust_allow.split(","),
         known_public_keys=_known_public_keys(settings),
     )
-    registry = RegistryService(db, auth=auth, search=search, trust=trust)
+    registry = RegistryService(
+        db, auth=auth, search=search, trust=trust, curator_key=settings.curator_key
+    )
     return Services(
         db=cast(sqlite3.Connection, db),
         auth=auth,

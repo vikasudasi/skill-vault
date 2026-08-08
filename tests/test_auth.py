@@ -101,6 +101,26 @@ def test_onboard_respects_duplicate_name(db):
         auth.onboard("dup")
 
 
+def test_super_agent_flag_resolves_from_db(db):
+    """set_super_agent is surfaced through resolve(); defaults to off for new agents."""
+    auth = _auth(db)
+    onboard = auth.onboard("agent")
+
+    guest = auth.resolve(None)
+    assert guest.is_super_agent is False
+
+    ctx_before = auth.resolve(onboard.raw_key)
+    assert ctx_before.is_authenticated and ctx_before.is_super_agent is False
+
+    auth.set_super_agent(onboard.agent_id, True)
+    ctx_promoted = auth.resolve(onboard.raw_key)
+    assert ctx_promoted.is_super_agent is True
+
+    auth.set_super_agent(onboard.agent_id, False)
+    ctx_demoted = auth.resolve(onboard.raw_key)
+    assert ctx_demoted.is_super_agent is False
+
+
 # ------------------------------------------------------------- scope isolation
 
 

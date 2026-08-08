@@ -85,11 +85,17 @@ def key_prefix(raw_key: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class AgentContext:
-    """Resolved identity for one request. ``scope`` is ``guest`` or ``authenticated``."""
+    """Resolved identity for one request. ``scope`` is ``guest`` or ``authenticated``.
+
+    ``is_super_agent`` marks an authenticated agent whose API key may publish/update
+    GLOBAL skills (auto-signed to ``verified`` by the curator key). It is only ever
+    True for an ``authenticated`` scope; guests default to False.
+    """
 
     agent_id: str | None
     key_id: str | None
     scope: str = "guest"
+    is_super_agent: bool = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -194,6 +200,19 @@ class AuthService:
             self._db.commit()
         return agent_id
 
+    def set_super_agent(self, agent_id: str, is_super: bool) -> None:
+        """Promote (``True``) or demote (``False``) an agent's super-agent flag.
+
+        A super agent's API key may publish/update GLOBAL skills; those global
+        publishes are auto-signed by the curator key to tier ``verified``.
+        """
+        with locked():
+            self._db.execute(
+                "UPDATE agents SET is_super_agent = ?, updated_at = ? WHERE id = ?",
+                (int(bool(is_super)), self._now_iso(), agent_id),
+            )
+            self._db.commit()
+
     # -- key lifecycle -------------------------------------------------------
 
     def issue_key(self, agent_id: str) -> IssuedKey:
@@ -259,7 +278,9 @@ class AuthService:
             return AgentContext(agent_id=None, key_id=None, scope="guest")
 
         row = self._db.execute(
-            "SELECT id, agent_id, revoked_at FROM api_keys WHERE key_hash = ?",
+            "SELECT a.id, a.agent_id, a.revoked_at, ag.is_super_agent "
+            "FROM api_keys a JOIN agents ag ON ag.id = a.agent_id "
+            "WHERE a.key_hash = ?",
             (hash_key(raw_key),),
         ).fetchone()
         if row is None:
@@ -276,7 +297,12 @@ class AuthService:
                 "UPDATE api_keys SET last_used_at = ? WHERE id = ?", (self._now_iso(), row["id"])
             )
             self._db.commit()
-        return AgentContext(agent_id=row["agent_id"], key_id=row["id"], scope="authenticated")
+        return AgentContext(
+            agent_id=row["agent_id"],
+            key_id=row["id"],
+            scope="authenticated",
+            is_super_agent=bool(row["is_super_agent"]),
+        )
 
     # -- user/session auth ----------------------------------------------------
 

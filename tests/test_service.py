@@ -54,6 +54,27 @@ def _skill(name="docker", body="# docker\nmanage containers"):
     )
 
 
+def _curator_services(tmp_path):
+    """Service stack with a curator keypair wired so auto-verified resolution works."""
+    from skill_vault.trust import generate_curator_keypair
+
+    db = connect(str(tmp_path / "app.db"))
+    run_migrations(db, MIGRATIONS)
+    priv, pub = generate_curator_keypair()
+    auth = AuthService(db, rate_limit=100000)
+    store = SqliteVecStore(str(tmp_path / "vec.db"))
+    search = SearchService(db, store, FakeEmbedder())
+    trust = TrustService(db, allow_tiers=("verified", "user", "public"), known_public_keys=(pub,))
+    reg = RegistryService(db, auth=auth, search=search, trust=trust, curator_key=priv)
+    return db, auth, trust, reg
+
+
+def _current_version_id(db, skill_id):
+    return db.execute("SELECT current_version_id FROM skills WHERE id = ?", (skill_id,)).fetchone()[
+        "current_version_id"
+    ]
+
+
 # --------------------------------------------------------------------------- #
 
 
@@ -101,6 +122,106 @@ def test_agent_cannot_update_global(tmp_path):
     res = reg.admin_publish(a.agent_id, _skill(), visibility="global")
     with pytest.raises(ForbiddenError):
         reg.update(identifier=res.id, skill=_skill(body="# docker\nv2"), agent_key=a.raw_key)
+
+
+# ---- super agent ----------------------------------------------------------
+
+
+def test_migration_004_adds_is_super_agent_column():
+    """A fresh DB built from migrations has the is_super_agent column (default 0)."""
+    import tempfile
+    import uuid
+    from pathlib import Path
+
+    from skill_vault.db import connect, run_migrations
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = connect(str(Path(tmp) / "m.db"))
+        run_migrations(db, MIGRATIONS)
+        cols = {row["name"] for row in db.execute("PRAGMA table_info(agents)").fetchall()}
+        assert "is_super_agent" in cols
+        aid = str(uuid.uuid4())
+        db.execute("INSERT INTO agents(id, name) VALUES (?, ?)", (aid, "agent"))
+        db.commit()
+        assert (
+            db.execute("SELECT is_super_agent FROM agents WHERE id = ?", (aid,)).fetchone()[
+                "is_super_agent"
+            ]
+            == 0
+        )
+        db.close()
+
+
+def test_super_agent_publishes_global_and_auto_verifies(tmp_path):
+    db, auth, trust, reg = _curator_services(tmp_path)
+    onboard = auth.onboard("super-agent")
+    auth.set_super_agent(onboard.agent_id, True)
+
+    res = reg.publish(skill=_skill(), visibility="global", agent_key=onboard.raw_key)
+    assert res.ok and res.version == 1
+    vid = _current_version_id(db, res.id)
+    assert trust.resolve_tier(vid) == "verified"
+
+    # signed by the curator key with the super-agent label, not the seed label
+    row = db.execute("SELECT * FROM trust WHERE skill_version_id = ?", (vid,)).fetchone()
+    from skill_vault.service import SUPER_AGENT_SIGNED_BY
+
+    assert row["signed_by"] == SUPER_AGENT_SIGNED_BY
+    assert row["signature"] is not None and row["public_key"] is not None
+
+    # and it is visible + verified through the normal read path (guest)
+    detail = reg.get(identifier=res.id, agent_key=None)
+    assert detail.trust == "verified" and detail.verified is True
+
+
+def test_super_agent_updates_global_and_resigns_verified(tmp_path):
+    db, auth, trust, reg = _curator_services(tmp_path)
+    onboard = auth.onboard("super-agent")
+    auth.set_super_agent(onboard.agent_id, True)
+
+    res = reg.publish(skill=_skill(), visibility="global", agent_key=onboard.raw_key)
+    v1 = _current_version_id(db, res.id)
+    assert trust.resolve_tier(v1) == "verified"
+
+    v2_res = reg.update(
+        identifier=res.id, skill=_skill(body="# docker\nv2"), agent_key=onboard.raw_key
+    )
+    assert v2_res.version == 2
+    v2 = _current_version_id(db, res.id)
+    assert v2 != v1
+    assert trust.resolve_tier(v2) == "verified"
+
+
+def test_super_agent_global_publish_unsigned_when_no_curator_key(tmp_path):
+    """Without a curator key, a super agent's global publish falls back to 'public'."""
+    _, _, reg, a = _merged(tmp_path)
+    auth = reg._auth
+    auth.set_super_agent(a.agent_id, True)
+    res = reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+    assert res.ok
+    assert reg.get(identifier=res.id, agent_key=None).trust == "public"
+
+
+def test_non_super_agent_still_forbidden_on_global_publish(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    with pytest.raises(ForbiddenError):
+        reg.publish(skill=_skill(), visibility="global", agent_key=a.raw_key)
+
+
+def test_non_super_agent_still_forbidden_on_global_update(tmp_path):
+    _, _, reg, a = _merged(tmp_path)
+    res = reg.admin_publish(a.agent_id, _skill(), visibility="global")
+    with pytest.raises(ForbiddenError):
+        reg.update(identifier=res.id, skill=_skill(body="# docker\nv2"), agent_key=a.raw_key)
+
+
+def test_super_agent_personal_behavior_unchanged(tmp_path):
+    """A super agent's personal publish behaves exactly like a normal agent."""
+    _, auth, _, reg = _curator_services(tmp_path)
+    onboard = auth.onboard("super-agent")
+    auth.set_super_agent(onboard.agent_id, True)
+    res = reg.publish(skill=_skill(), visibility="personal", agent_key=onboard.raw_key)
+    assert reg.get(identifier=res.id, agent_key=onboard.raw_key).trust == "user"
 
 
 def test_team_publish_requires_user_owned_agent(tmp_path):

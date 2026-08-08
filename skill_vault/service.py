@@ -23,9 +23,21 @@ from skill_vault.errors import (
 )
 from skill_vault.models import DeleteResult, PublishResult, SkillCard, SkillDetail, SkillInput
 from skill_vault.search import SearchService
-from skill_vault.trust import TIER_VERIFIED, TrustService, canonical_payload, content_hash
+from skill_vault.trust import (
+    TIER_VERIFIED,
+    TrustService,
+    canonical_payload,
+    content_hash,
+    public_key_from_private_key,
+    sign,
+)
 
 _TIER_RANK = {"verified": 3, "user": 2, "public": 1}
+
+# ``signed_by`` label stamped on global skills published/updated by a super agent
+# and auto-signed with the curator key. Distinct from bootstrap seed metadata so
+# it can't be confused with the 17 curated-library seeds.
+SUPER_AGENT_SIGNED_BY = "super agent (global publish)"
 
 
 def tier_rank(tier: str) -> int:
@@ -42,11 +54,15 @@ class RegistryService:
         auth: AuthService,
         search: SearchService,
         trust: TrustService,
+        curator_key: str | None = None,
     ) -> None:
         self._db = db
         self._auth = auth
         self._search = search
         self._trust = trust
+        # Curator ed25519 private key used to auto-sign global publishes made by a
+        # super agent (or via the admin/web path) so they resolve to 'verified'.
+        self._curator_key = curator_key
 
     # -- auth ---------------------------------------------------------------
 
@@ -201,8 +217,10 @@ class RegistryService:
                 raise InvalidSkillError(
                     f"visibility must be 'global', 'personal', or 'team', got {visibility!r}"
                 )
-            if visibility == "global" and not _admin:
-                raise ForbiddenError("agents may not publish global skills; only an admin can")
+            if visibility == "global" and not (_admin or ctx.is_super_agent):
+                raise ForbiddenError(
+                    "agents may not publish global skills; only a super agent or admin can"
+                )
             if visibility == "team" and self._agent_owner_user_id(ctx.agent_id) is None:
                 raise InvalidSkillError("team visibility requires an agent owned by a user")
             if not skill.name.strip():
@@ -225,7 +243,7 @@ class RegistryService:
             self._db.execute(
                 "UPDATE skills SET current_version_id = ? WHERE id = ?", (version_id, skill_id)
             )
-            self._record_trust(version_id, ctx.agent_id, visibility)
+            self._record_publish_trust(ctx, version_id, payload, visibility, _admin=_admin)
             self._search.index_version(version_id)
             self._db.commit()
             return PublishResult(ok=True, id=skill_id, version=1, content_hash=digest)
@@ -247,8 +265,10 @@ class RegistryService:
                 raise NotFoundError(f"no skill matches {identifier!r}")
             if skill_row["owner_agent_id"] != ctx.agent_id:
                 raise ForbiddenError("only the owning agent may update this skill")
-            if skill_row["visibility"] == "global" and not _admin:
-                raise ForbiddenError("agents may not update global skills; only an admin can")
+            if skill_row["visibility"] == "global" and not (_admin or ctx.is_super_agent):
+                raise ForbiddenError(
+                    "agents may not update global skills; only a super agent or admin can"
+                )
 
             next_version = int(
                 self._db.execute(
@@ -265,7 +285,9 @@ class RegistryService:
                 "UPDATE skills SET current_version_id = ?, name = ?, updated_at = ? WHERE id = ?",
                 (version_id, skill.name.strip(), now, skill_row["id"]),
             )
-            self._record_trust(version_id, ctx.agent_id, skill_row["visibility"])
+            self._record_publish_trust(
+                ctx, version_id, payload, skill_row["visibility"], _admin=_admin
+            )
             self._search.index_version(version_id)
             if skill_row["current_version_id"]:
                 self._search.remove_version(skill_row["current_version_id"])
@@ -362,6 +384,34 @@ class RegistryService:
             score=0.0,
             version=int(row["version"]),
         )
+
+    def _record_publish_trust(
+        self,
+        ctx: AgentContext,
+        version_id: str,
+        payload: bytes,
+        visibility: str,
+        *,
+        _admin: bool,
+    ) -> None:
+        """Record the trust tier for a publish/update.
+
+        GLOBAL skills published/updated by a super agent (or via the admin path)
+        are auto-signed with the configured curator key so they resolve to tier
+        ``verified``. When no curator key is available — or the action is not a
+        global publish — the normal derived tier is used (existing behavior).
+        """
+        curator = self._curator_key
+        if visibility == "global" and curator is not None and (ctx.is_super_agent or _admin):
+            self._trust.record(
+                version_id,
+                TIER_VERIFIED,
+                signature=sign(payload, curator),
+                public_key=public_key_from_private_key(curator),
+                signed_by=SUPER_AGENT_SIGNED_BY,
+            )
+            return
+        self._record_trust(version_id, ctx.agent_id, visibility)
 
     def _record_trust(self, version_id: str, owner_agent_id: str | None, visibility: str) -> None:
         tier = self._trust.compute_tier(

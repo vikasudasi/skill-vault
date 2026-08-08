@@ -10,7 +10,19 @@
     <li>
       <strong>{{ agent["name"] }}</strong>
       <span class="muted">{{ agent["id"] }}</span>
+      {% if is_superuser and agent["is_super_agent"] %}<span class="badge badge-verified">super agent</span>{% endif %}
       <a href="/agents/{{ agent['id'] }}">Open dashboard</a>
+      {% if is_superuser %}
+      <form method="post" action="/agents/{{ agent['id'] }}/super" style="display:inline">
+        {% if agent["is_super_agent"] %}
+        <input type="hidden" name="is_super" value="0">
+        <button type="submit">Demote to normal</button>
+        {% else %}
+        <input type="hidden" name="is_super" value="1">
+        <button type="submit">Promote to super agent</button>
+        {% endif %}
+      </form>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>

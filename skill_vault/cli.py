@@ -148,7 +148,10 @@ def whoami_command(db_path: str | None, password: str) -> None:
     auth = AuthService(db, rate_limit=settings.rate_limit_per_minute)
     ctx: AgentContext = auth.resolve(password)
     if ctx.is_authenticated:
-        console.print(f"[green]Authenticated:[/green] agent={ctx.agent_id} scope={ctx.scope}")
+        super_label = " super" if ctx.is_super_agent else ""
+        console.print(
+            f"[green]Authenticated:[/green] agent={ctx.agent_id} scope={ctx.scope}{super_label}"
+        )
     else:
         console.print("[yellow]Guest[/yellow] (no credential resolved)")
 
@@ -462,6 +465,28 @@ def agent_create_command(name: str) -> None:
     run_migrations(db, "migrations")
     auth = AuthService(db, rate_limit=settings.rate_limit_per_minute)
     console.print(f"[green]Created agent:[/green] {auth.create_agent(name)}")
+
+
+@agent_group.command(
+    "super-agent",
+    help="Promote (--on) or demote (--off) an agent's super-agent flag so its API "
+    "key may publish/update global (verified) skills.",
+)
+@click.option("--agent-id", required=True, type=str, help="Agent UUID.")
+@click.option("--on/--off", "enable", default=True, help="Set the flag on or off.")
+def agent_super_command(agent_id: str, enable: bool) -> None:
+    settings = get_settings()
+    db = connect(settings.db_path)
+    run_migrations(db, "migrations")
+    auth = AuthService(db, rate_limit=settings.rate_limit_per_minute)
+    exists = db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone()
+    if exists is None:
+        db.close()
+        raise click.ClickException(f"No agent found with id {agent_id!r}")
+    auth.set_super_agent(agent_id, enable)
+    db.close()
+    state = "super agent (may publish global verified skills)" if enable else "normal agent"
+    console.print(f"[green]Agent {agent_id} is now a {state}.[/green]")
 
 
 @agent_group.command("keys", help="List API keys issued to an agent.")
