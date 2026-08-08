@@ -11,7 +11,7 @@
       {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
       <p>{{ skill.description }}</p>
     </div>
-    <a href="/skills/{{ skill.id }}">View</a>
+    <a class="btn btn-secondary" href="/skills/{{ skill.id }}">View</a>
   </li>
   {% endfor %}
 </ul>
