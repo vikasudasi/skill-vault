@@ -1,13 +1,79 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Skill Vault Dashboard{% endblock %}</title>
+
+    {# Apply the saved / system colour scheme BEFORE paint to avoid a flash. #}
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem("sv-theme");
+        } catch (e) {
+          stored = null;
+        }
+        var dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var root = document.documentElement;
+        root.classList.toggle("dark", dark);
+        root.setAttribute("data-theme", dark ? "dark" : "light");
+      })();
+    </script>
+
+    {# Design tokens / typography: Inter webfont with the system stack as fallback. #}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    {# highlight.js theme (code blocks in configure / skill detail). #}
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+    />
+
+    {# Tailwind Play CDN (JIT, utilities-only). Colours are wired to the same
+       CSS tokens defined in skillvault.css via rgb(var(--sv-*) / <alpha-value>)
+       so utility classes honour dark mode automatically. #}
+    <script>
+      tailwind = {
+        config: {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                bg: "rgb(var(--sv-bg) / <alpha-value>)",
+                surface: "rgb(var(--sv-surface) / <alpha-value>)",
+                line: "rgb(var(--sv-border) / <alpha-value>)",
+                ink: "rgb(var(--sv-text) / <alpha-value>)",
+                mute: "rgb(var(--sv-muted) / <alpha-value>)",
+                brand: "rgb(var(--sv-primary) / <alpha-value>)",
+                accent: "rgb(var(--sv-accent) / <alpha-value>)",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
     <link rel="stylesheet" href="{{ url_for('static', path='skillvault.css') }}" />
     <script defer src="{{ url_for('static', path='skillvault.js') }}"></script>
+
+    {# htmx (partial swaps / search-as-you-type) — defined as global for CDN. #}
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+
+    {# highlight.js — runs after the theme stylesheet is in place. #}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+
+    {# Alpine.js (dark-mode toggle wiring + light interactivity). Must load last
+       so it can pick up helpers defined in skillvault.js. #}
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
-  <body>
+  <body x-data="theme()">
     <header class="page-header public-header">
       <div class="container public-nav">
         <p class="brand"><a href="/">Skill Vault</a></p>
@@ -24,6 +90,16 @@
           <a href="/login">Login</a>
           <a href="/signup">Sign up</a>
           {% endif %}
+          <button
+            type="button"
+            class="theme-toggle"
+            @click="toggle()"
+            :aria-pressed="dark ? 'true' : 'false'"
+            aria-label="Toggle dark mode"
+            title="Toggle dark mode"
+          >
+            <span aria-hidden="true">🌓</span><span class="sr-only">Toggle dark mode</span>
+          </button>
         </nav>
       </div>
     </header>

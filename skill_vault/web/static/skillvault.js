@@ -1,4 +1,51 @@
-fromEventButtons("[data-copy-target]", function (button) {
+// skillvault.js — shared frontend behaviour.
+//
+// - Clipboard copy with execCommand fallback (kept working).
+// - data-confirm dialogs.
+// - Tab panels.
+// - Alpine dark-mode `theme()` component (consumed by base.html x-data="theme()").
+// - highlight.js code highlighting + re-running after HTMX partial swaps.
+
+// --- Alpine dark-mode component --------------------------------------------
+window.theme = function () {
+  return {
+    dark: false,
+    init() {
+      this.dark = document.documentElement.classList.contains("dark");
+    },
+    toggle() {
+      this.dark = !this.dark;
+      this.apply();
+    },
+    apply() {
+      const root = document.documentElement;
+      root.classList.toggle("dark", this.dark);
+      root.setAttribute("data-theme", this.dark ? "dark" : "light");
+      try {
+        localStorage.setItem("sv-theme", this.dark ? "dark" : "light");
+      } catch (e) {
+        /* storage unavailable (private mode) — theme still applies for the tab */
+      }
+    },
+  };
+};
+
+// --- highlight.js -----------------------------------------------------------
+function runHighlight() {
+  if (!window.hljs) {
+    return;
+  }
+  document.querySelectorAll("pre code").forEach(function (el) {
+    if (el.dataset.highlighted === "yes") {
+      return;
+    }
+    hljs.highlightElement(el);
+    el.dataset.highlighted = "yes";
+  });
+}
+
+// --- Clipboard copy (kept from the original) --------------------------------
+function copyFromButton(button) {
   const targetId = button.getAttribute("data-copy-target");
   if (!targetId) {
     return;
@@ -46,7 +93,9 @@ fromEventButtons("[data-copy-target]", function (button) {
   } else {
     failed();
   }
-});
+}
+
+fromEventButtons("[data-copy-target]", copyFromButton);
 
 fromEventButtons("[data-confirm]", function (button, event) {
   const message = button.getAttribute("data-confirm") || "Are you sure?";
@@ -80,3 +129,15 @@ function fromEventButtons(selector, handler) {
     });
   });
 }
+
+// --- Initialisation ----------------------------------------------------------
+document.addEventListener("DOMContentLoaded", function () {
+  runHighlight();
+});
+
+// After an HTMX partial swap, re-bind behaviours on the newly injected nodes
+// so copy buttons, tabs, and code blocks keep working in the fragment.
+document.addEventListener("htmx:afterSwap", function () {
+  runHighlight();
+  fromEventButtons("[data-copy-target]", copyFromButton);
+});
