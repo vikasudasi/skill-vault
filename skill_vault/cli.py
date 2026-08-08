@@ -524,3 +524,7 @@ def agent_revoke_command(agent_id: str, key_id: str) -> None:
     auth = AuthService(db, rate_limit=settings.rate_limit_per_minute)
     auth.revoke_key(agent_id, key_id)
     console.print(f"[green]Revoked key:[/green] {key_id}")
+
+
+if __name__ == "__main__":
+    cli()
