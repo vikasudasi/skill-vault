@@ -351,6 +351,7 @@ def browse(
     request: Request,
     q: str = Query(default=""),
     page: int = Query(default=1),
+    partial: bool = Query(default=False),
 ) -> Response:
     services = _services(request)
     query = q.strip()
@@ -360,9 +361,14 @@ def browse(
             cards, has_next = _browse_page(services, query, current_page)
     except SkillVaultError as exc:
         _raise_http(exc)
+    # HTMX partial swaps (search-as-you-type, pagination) request only the
+    # results fragment. htmx always sends the HX-Request header; ?partial=1 is
+    # supported too for direct/testing access. Normal /browse still returns the
+    # full page.
+    is_partial = partial or bool(request.headers.get("HX-Request"))
     return _templates(request).TemplateResponse(
         request,
-        "browse.html",
+        "browse_results.html" if is_partial else "browse.html",
         {
             "q": query,
             "page": current_page,

@@ -284,6 +284,80 @@ def test_browse_hides_confidence_without_query_shows_with_query(tmp_path: Path) 
     assert "85%" in with_q.text
 
 
+def test_browse_fragment_hides_confidence_without_query_shows_with_query(
+    tmp_path: Path,
+) -> None:
+    """The HTMX fragment must preserve the trust badge and the score-gated
+    confidence line exactly like the full page."""
+    from skill_vault.models import SkillCard
+
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    services.registry.admin_publish(agent_id, _skill("Global Searchable"), "global")
+
+    empty = client.get("/browse?partial=1")
+    assert empty.status_code == 200
+    assert "Global Searchable" in empty.text
+    assert "badge-public" in empty.text
+    assert "confidence" not in empty.text
+
+    services.registry.search = lambda *a, **k: [
+        SkillCard(
+            id="x",
+            name="Global Searchable",
+            description="d",
+            tags=[],
+            trust="public",
+            score=0.85,
+            version=1,
+        )
+    ]
+    with_q = client.get("/browse?q=whatever&partial=1")
+    assert with_q.status_code == 200
+    assert "confidence" in with_q.text
+    assert "85%" in with_q.text
+
+
+def test_browse_hx_request_returns_fragment_not_full_page(tmp_path: Path) -> None:
+    """htmx sends the HX-Request header; /browse must then return only the
+    results fragment (no <html>/<head>/<body> shell), while a request without
+    the header keeps returning the full page."""
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    services.registry.admin_publish(agent_id, _skill("Global Searchable"), "global")
+
+    # Full page carries the shell (header nav) and the search form.
+    full = client.get("/browse")
+    assert full.status_code == 200
+    assert "<html" in full.text
+    assert 'href="/browse"' in full.text  # search form action
+
+    # HX-Request -> fragment only.
+    partial = client.get("/browse", headers={"HX-Request": "true"})
+    assert partial.status_code == 200
+    assert "Global Searchable" in partial.text
+    assert "badge-public" in partial.text
+    assert "<html" not in partial.text
+    assert "<header" not in partial.text
+    assert 'id="search-form"' not in partial.text  # no search-form shell
+
+
+def test_browse_partial_pagination_links(tmp_path: Path) -> None:
+    """The fragment pager targets #results so an htmx request swaps only the
+    results container (no full reload) and uses hx-push-url."""
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    for n in range(12):
+        services.registry.admin_publish(
+            agent_id, _skill(f"Global Skill {n}", description=f"desc {n}"), "global"
+        )
+
+    partial = client.get("/browse?page=2&partial=1")
+    assert partial.status_code == 200
+    assert 'hx-target="#results"' in partial.text
+    assert 'hx-push-url="true"' in partial.text
+
+
 def test_skill_detail_shows_metadata_and_body(tmp_path: Path) -> None:
     client, services = _client(tmp_path)
     agent_id = services.auth.create_agent("publisher")

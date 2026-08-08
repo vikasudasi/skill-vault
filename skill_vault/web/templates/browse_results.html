@@ -1,0 +1,38 @@
+{# Fragment returned for HTMX partial swaps on /browse (search + pagination).
+   Rendered standalone by the browse route when HX-Request or ?partial=1, and
+   included into the full page via {% include "browse_results.html" %}. #}
+{% if skills %}
+<ul class="list">
+  {% for skill in skills %}
+  <li>
+    <div>
+      <strong>{{ skill.name }}</strong>
+      <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+      {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
+      <p>{{ skill.description }}</p>
+    </div>
+    <a href="/skills/{{ skill.id }}">View</a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No results.</p>
+{% endif %}
+<div class="pager">
+  {% if page > 1 %}
+  <a
+    href="/browse?q={{ q }}&page={{ prev_page }}"
+    hx-get="/browse?q={{ q }}&page={{ prev_page }}"
+    hx-target="#results"
+    hx-push-url="true"
+  >Previous</a>
+  {% endif %}
+  {% if has_next %}
+  <a
+    href="/browse?q={{ q }}&page={{ next_page }}"
+    hx-get="/browse?q={{ q }}&page={{ next_page }}"
+    hx-target="#results"
+    hx-push-url="true"
+  >Next</a>
+  {% endif %}
+</div>

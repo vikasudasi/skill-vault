@@ -3,39 +3,38 @@
 {% block content %}
 <section class="panel">
   <h2>Global Skills</h2>
-  <form method="get" action="/browse" class="stack">
+  {# Search-as-you-type: the input fires an HTMX GET on input (debounced 300ms)
+     and on the native `search` event (e.g. clearing via the X). The whole form
+     is included so `q` and the page=1 reset are sent; #results is swapped with
+     the fragment response and the URL is pushed for shareable searches. #}
+  <form id="search-form" method="get" action="/browse" class="stack"
+        hx-get="/browse" hx-target="#results" hx-trigger="submit">
     <label for="q">Search</label>
-    <input id="q" name="q" type="search" value="{{ q }}" />
+    <div class="search-row">
+      <input
+        id="q"
+        name="q"
+        type="search"
+        value="{{ q }}"
+        placeholder="Search global skills…"
+        hx-get="/browse"
+        hx-trigger="input changed delay:300ms, search"
+        hx-include="#search-form"
+        hx-target="#results"
+        hx-indicator="#search-indicator"
+        hx-push-url="true"
+        hx-swap="innerHTML"
+      />
+      <span id="search-indicator" class="htmx-indicator">Searching…</span>
+      <button type="submit">Search</button>
+    </div>
     <input type="hidden" name="page" value="1" />
-    <button type="submit">Search</button>
   </form>
 </section>
 
 <section class="panel">
-  {% if skills %}
-  <ul class="list">
-    {% for skill in skills %}
-    <li>
-      <div>
-        <strong>{{ skill.name }}</strong>
-        <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-        {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
-        <p>{{ skill.description }}</p>
-      </div>
-      <a href="/skills/{{ skill.id }}">View</a>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p>No results.</p>
-  {% endif %}
-  <div class="pager">
-    {% if page > 1 %}
-    <a href="/browse?q={{ q }}&page={{ prev_page }}">Previous</a>
-    {% endif %}
-    {% if has_next %}
-    <a href="/browse?q={{ q }}&page={{ next_page }}">Next</a>
-    {% endif %}
+  <div id="results">
+    {% include "browse_results.html" %}
   </div>
 </section>
 {% endblock %}
