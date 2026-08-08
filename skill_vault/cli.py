@@ -266,7 +266,9 @@ def curator_gen_key_command() -> None:
     type=str,
     help="ed25519 private key (base64) to sign with (overrides env).",
 )
-def curator_resign_command(seed_dir: str | None, db_path: str | None, curator_key: str | None) -> None:
+def curator_resign_command(
+    seed_dir: str | None, db_path: str | None, curator_key: str | None
+) -> None:
     settings = get_settings()
     resolved_db_path = db_path or settings.db_path
     service_settings = replace(settings, db_path=resolved_db_path)
