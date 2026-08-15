@@ -1,38 +1,110 @@
 {# Fragment returned for HTMX partial swaps on /browse (search + pagination).
    Rendered standalone by the browse route when HX-Request or ?partial=1, and
    included into the full page via {% include "browse_results.html" %}. #}
+
+{% macro browse_url(page_num, trust_filter=none) -%}
+{% set active_trust = trust_filter if trust_filter is not none else min_trust -%}
+/browse?{% if q %}q={{ q | urlencode }}&{% endif %}page={{ page_num }}{% if active_trust %}&min_trust={{ active_trust }}{% endif %}{% if not q and sort == 'name' %}&sort=name{% endif %}
+{%- endmacro %}
+
+<div class="results-header">
+  {% if q %}
+  <h3>Search results for &ldquo;{{ q }}&rdquo;</h3>
+  {% else %}
+  <h3>Browsing {{ total }} global skill{{ 's' if total != 1 else '' }}{% if sort == 'name' %}, sorted A&ndash;Z{% else %}, newest first{% endif %}</h3>
+  {% endif %}
+</div>
+
+<div class="trust-legend muted">
+  <span class="badge badge-verified">verified</span> curator-signed
+  <span class="badge badge-public">public</span> community
+  <span class="badge badge-user">user</span> agent-published
+</div>
+
+<div class="filter-chips" role="group" aria-label="Filter by trust tier">
+  <a class="chip{% if not min_trust %} is-active{% endif %}"
+     href="{{ browse_url(1, '') }}"
+     hx-get="{{ browse_url(1, '') }}"
+     hx-target="#results" hx-push-url="true">All</a>
+  <a class="chip{% if min_trust == 'verified' %} is-active{% endif %}"
+     href="{{ browse_url(1, 'verified') }}"
+     hx-get="{{ browse_url(1, 'verified') }}"
+     hx-target="#results" hx-push-url="true">verified</a>
+  <a class="chip{% if min_trust == 'public' %} is-active{% endif %}"
+     href="{{ browse_url(1, 'public') }}"
+     hx-get="{{ browse_url(1, 'public') }}"
+     hx-target="#results" hx-push-url="true">public</a>
+  <a class="chip{% if min_trust == 'user' %} is-active{% endif %}"
+     href="{{ browse_url(1, 'user') }}"
+     hx-get="{{ browse_url(1, 'user') }}"
+     hx-target="#results" hx-push-url="true">user</a>
+</div>
+
+{% if not q %}
+<div class="sort-control">
+  <span class="muted">Sort:</span>
+  <a class="chip{% if sort != 'name' %} is-active{% endif %}"
+     href="/browse?page=1{% if min_trust %}&min_trust={{ min_trust }}{% endif %}"
+     hx-get="/browse?page=1{% if min_trust %}&min_trust={{ min_trust }}{% endif %}"
+     hx-target="#results" hx-push-url="true">Newest</a>
+  <a class="chip{% if sort == 'name' %} is-active{% endif %}"
+     href="/browse?page=1&sort=name{% if min_trust %}&min_trust={{ min_trust }}{% endif %}"
+     hx-get="/browse?page=1&sort=name{% if min_trust %}&min_trust={{ min_trust }}{% endif %}"
+     hx-target="#results" hx-push-url="true">Name A&ndash;Z</a>
+</div>
+{% endif %}
+
 {% if skills %}
-<ul class="list">
+<ul class="list browse-list">
   {% for skill in skills %}
-  <li>
+  <li class="browse-card">
     <div>
-      <strong>{{ skill.name }}</strong>
-      <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-      {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
-      <p>{{ skill.description }}</p>
+      <div class="browse-card-header">
+        <a class="browse-card-title" href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
+        <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+        {% if q %}
+        <span class="rank-badge">#{{ loop.index }}</span>
+        {% if skill.score >= 0.5 %}
+        <span class="match-hint" title="semantic similarity to your query">match</span>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% if skill.tags %}
+      <div class="tag-chips">
+        {% for tag in skill.tags %}
+        <span class="tag-chip">{{ tag }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <p class="browse-description">{{ skill.description }}</p>
     </div>
-    <a class="btn btn-secondary" href="/skills/{{ skill.id }}">View</a>
   </li>
   {% endfor %}
 </ul>
 {% else %}
-<p>No results.</p>
+<div class="empty-state">
+  {% if q %}
+  <p><strong>No skills matched</strong></p>
+  <p class="muted">Try a shorter query or different wording.</p>
+  <p><a href="/browse{% if min_trust %}?min_trust={{ min_trust }}{% endif %}">Clear search</a></p>
+  {% else %}
+  <p><strong>No global skills published yet.</strong></p>
+  {% endif %}
+</div>
 {% endif %}
+
 <div class="pager">
+  {% if total is not none and total > 0 %}
+  <span class="pager-meta muted">Page {{ page }} &middot; Showing {{ start }}&ndash;{{ end }} of {{ total }}</span>
+  {% elif q and start > 0 %}
+  <span class="pager-meta muted">Page {{ page }} &middot; Showing {{ start }}&ndash;{{ end }}</span>
+  {% endif %}
   {% if page > 1 %}
-  <a
-    href="/browse?q={{ q }}&page={{ prev_page }}"
-    hx-get="/browse?q={{ q }}&page={{ prev_page }}"
-    hx-target="#results"
-    hx-push-url="true"
-  >Previous</a>
+  <a href="{{ browse_url(prev_page) }}" hx-get="{{ browse_url(prev_page) }}"
+     hx-target="#results" hx-push-url="true">Previous</a>
   {% endif %}
   {% if has_next %}
-  <a
-    href="/browse?q={{ q }}&page={{ next_page }}"
-    hx-get="/browse?q={{ q }}&page={{ next_page }}"
-    hx-target="#results"
-    hx-push-url="true"
-  >Next</a>
+  <a href="{{ browse_url(next_page) }}" hx-get="{{ browse_url(next_page) }}"
+     hx-target="#results" hx-push-url="true">Next</a>
   {% endif %}
 </div>

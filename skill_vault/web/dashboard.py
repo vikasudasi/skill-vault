@@ -17,6 +17,7 @@ from skill_vault.web.session_auth import require_user
 
 router = APIRouter()
 _PAGE_SIZE = 10
+_SEARCH_MIN_SCORE = 0.35
 _MIN_PASSWORD_LENGTH = 8
 _SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -73,7 +74,7 @@ def dashboard_home(request: Request) -> Response:
             ).fetchall()
         else:
             agents = services.db.execute(
-                "SELECT id, name, created_at FROM agents WHERE owner_user_id = ? "
+                "SELECT id, name, created_at, is_super_agent FROM agents WHERE owner_user_id = ? "
                 "ORDER BY created_at DESC",
                 (str(user["id"]),),
             ).fetchall()
@@ -145,9 +146,12 @@ def agent_dashboard(
                 raise HTTPException(status_code=404, detail="Agent not found")
             personal_skills = services.registry.admin_list_my(agent_id)
             keys = services.auth.list_keys(agent_id)
-            global_skills, has_next = _browse_page(services, query, current_page)
+            global_skills, has_next, global_total = _browse_page(services, query, current_page)
     except SkillVaultError as exc:
         _raise_http(exc)
+
+    start = (current_page - 1) * _PAGE_SIZE + 1 if global_skills else 0
+    end = (current_page - 1) * _PAGE_SIZE + len(global_skills)
 
     return templates.TemplateResponse(
         request,
@@ -159,9 +163,12 @@ def agent_dashboard(
             "keys": keys,
             "active_tab": active_tab,
             "global_skills": global_skills,
+            "global_total": global_total,
             "q": query,
             "page": current_page,
             "has_next": has_next,
+            "start": start,
+            "end": end,
             "prev_page": current_page - 1,
             "next_page": current_page + 1,
         },
@@ -382,15 +389,27 @@ def browse(
     q: str = Query(default=""),
     page: int = Query(default=1),
     partial: bool = Query(default=False),
+    min_trust: str | None = Query(default=None),
+    sort: str = Query(default="newest"),
 ) -> Response:
     services = _services(request)
     query = q.strip()
     current_page = _normalize_page(page)
+    browse_sort = sort if sort in {"newest", "name"} else "newest"
+    trust_filter = min_trust if min_trust in {"verified", "public", "user"} else None
     try:
         with locked():
-            cards, has_next = _browse_page(services, query, current_page)
+            cards, has_next, total = _browse_page(
+                services,
+                query,
+                current_page,
+                min_trust=trust_filter,
+                sort=browse_sort,
+            )
     except SkillVaultError as exc:
         _raise_http(exc)
+    start = (current_page - 1) * _PAGE_SIZE + 1 if cards else 0
+    end = (current_page - 1) * _PAGE_SIZE + len(cards)
     # HTMX partial swaps (search-as-you-type, pagination) request only the
     # results fragment. htmx always sends the HX-Request header; ?partial=1 is
     # supported too for direct/testing access. Normal /browse still returns the
@@ -406,6 +425,12 @@ def browse(
             "next_page": current_page + 1,
             "has_next": has_next,
             "skills": cards,
+            "total": total,
+            "start": start,
+            "end": end,
+            "min_trust": trust_filter,
+            "sort": browse_sort,
+            "page_size": _PAGE_SIZE,
         },
     )
 
@@ -613,21 +638,40 @@ def delete_skill_file(
     return RedirectResponse(url=f"/skills/{skill_id}", status_code=303)
 
 
-def _browse_page(services: Services, query: str, page: int) -> tuple[list[SkillCard], bool]:
+def _browse_page(
+    services: Services,
+    query: str,
+    page: int,
+    *,
+    min_trust: str | None = None,
+    sort: str = "newest",
+) -> tuple[list[SkillCard], bool, int | None]:
     if query:
         needed = page * _PAGE_SIZE + 1
         cards = services.registry.search(
             query=query,
             scope="global",
             limit=needed,
+            min_trust=min_trust,
             agent_key=None,
         )
+        filtered = [card for card in cards if card.score >= _SEARCH_MIN_SCORE]
         start = (page - 1) * _PAGE_SIZE
-        page_cards = cards[start : start + _PAGE_SIZE]
-        return page_cards, len(cards) > (start + _PAGE_SIZE)
+        page_cards = filtered[start : start + _PAGE_SIZE]
+        has_next = start + _PAGE_SIZE < len(filtered)
+        # Semantic search is a ranked nearest-neighbour query; there is no
+        # meaningful exact total. Return None so the template renders a
+        # mode label instead of a misleading count.
+        return page_cards, has_next, None
+    total = services.registry.count_global(min_trust=min_trust)
     offset = (page - 1) * _PAGE_SIZE
-    cards = services.registry.list_global(limit=_PAGE_SIZE + 1, offset=offset)
-    return cards[:_PAGE_SIZE], len(cards) > _PAGE_SIZE
+    cards = services.registry.list_global(
+        limit=_PAGE_SIZE + 1,
+        offset=offset,
+        sort=sort,
+        min_trust=min_trust,
+    )
+    return cards[:_PAGE_SIZE], len(cards) > _PAGE_SIZE, total
 
 
 def _created_at_for(services: Services, skill_id: str, version: int) -> str | None:
@@ -739,14 +783,14 @@ def _owned_agent_row(services: Services, user: sqlite3.Row, agent_id: str) -> sq
         return cast(
             sqlite3.Row | None,
             services.db.execute(
-                "SELECT id, name FROM agents WHERE id = ?",
+                "SELECT id, name, is_super_agent FROM agents WHERE id = ?",
                 (agent_id,),
             ).fetchone(),
         )
     return cast(
         sqlite3.Row | None,
         services.db.execute(
-            "SELECT id, name FROM agents WHERE id = ? AND owner_user_id = ?",
+            "SELECT id, name, is_super_agent FROM agents WHERE id = ? AND owner_user_id = ?",
             (agent_id, str(user["id"])),
         ).fetchone(),
     )

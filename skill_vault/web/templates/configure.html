@@ -2,15 +2,16 @@
 {% block title %}Configure Skill Vault MCP Clients{% endblock %}
 {% block content %}
 <section class="panel">
-  <h1>Configure Skill Vault in 3 steps</h1>
+  <h1 class="page-heading"><span class="gradient-text">Configure Skill Vault in 3 steps</span></h1>
   <p>
     Skill Vault supports local stdio and remote streamable-http MCP setups. Choose your transport,
     then paste the client snippet for Claude Code, Cursor, Codex, or Gemini CLI.
   </p>
 </section>
 
-<section class="panel">
-  <h2>Step 0 — Get an API key</h2>
+<section class="config-step">
+  <p class="step-badge">Step 0</p>
+  <h2>Get an API key</h2>
   <p>
     Create an agent key from <a href="/dashboard/onboard">/dashboard/onboard</a>. The raw key is
     shown once during onboarding.
@@ -22,35 +23,41 @@
   </p>
 </section>
 
-<section class="panel">
-  <h2>Step 1 — Run the server</h2>
+<section class="config-step">
+  <p class="step-badge">Step 1</p>
+  <h2>Run the server</h2>
   <div class="snippet-grid">
     <article class="code-card">
-      <div class="code-toolbar">
+      <div class="code-card-header">
         <h3>Local stdio</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="run-stdio">Copy</button>
       </div>
-      <pre id="run-stdio" class="code-block">skill-vault serve</pre>
+      <div class="code-card-body">
+        <pre id="run-stdio" class="code-block">skill-vault serve</pre>
+      </div>
     </article>
     <article class="code-card">
-      <div class="code-toolbar">
+      <div class="code-card-header">
         <h3>Remote streamable-http</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="run-remote">Copy</button>
       </div>
-      <pre id="run-remote" class="code-block">skill-vault serve --transport streamable-http --host 0.0.0.0 --port {{ endpoint_port }}</pre>
-      <p class="muted">Remote MCP URL pattern: <code>http://&lt;host&gt;:{{ endpoint_port }}/mcp</code></p>
-      <p class="muted">Remote endpoint: <code>{{ endpoint }}</code></p>
-      {% if host_needs_substitution %}
-      <p class="muted">
-        Replace <code>&lt;your-host-or-ip&gt;</code> with your externally reachable host.
-      </p>
-      {% endif %}
+      <div class="code-card-body">
+        <pre id="run-remote" class="code-block">skill-vault serve --transport streamable-http --host 0.0.0.0 --port {{ endpoint_port }}</pre>
+        <p class="muted">Remote MCP URL pattern: <code>http://&lt;host&gt;:{{ endpoint_port }}/mcp</code></p>
+        <p class="muted">Remote endpoint: <code>{{ endpoint }}</code></p>
+        {% if host_needs_substitution %}
+        <p class="muted">
+          Replace <code>&lt;your-host-or-ip&gt;</code> with your externally reachable host.
+        </p>
+        {% endif %}
+      </div>
     </article>
   </div>
 </section>
 
-<section class="panel">
-  <h2>Step 2 — Configure your client</h2>
+<section class="config-step">
+  <p class="step-badge">Step 2</p>
+  <h2>Configure your client</h2>
   <p class="muted">
     Every snippet includes an <code>agent_key</code> note. Paste your key from dashboard onboarding and
     pass it as the <code>agent_key</code> tool argument.
@@ -58,32 +65,40 @@
 
   <div class="snippet-grid">
     <article class="code-card">
-      <h3>Claude Code — stdio</h3>
-      <div class="code-toolbar">
-        <span class="muted">~/.claude/settings.json or CLI</span>
+      <div class="code-card-header">
+        <div>
+          <h3>Claude Code — stdio</h3>
+          <span class="muted">~/.claude/settings.json or CLI</span>
+        </div>
         <button type="button" class="btn btn-secondary" data-copy-target="claude-stdio">Copy</button>
       </div>
-      <pre id="claude-stdio" class="code-block">claude mcp add skill-vault -- skill-vault serve
+      <div class="code-card-body">
+        <pre id="claude-stdio" class="code-block">claude mcp add skill-vault -- skill-vault serve
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Claude Code — streamable-http</h3>
-      <div class="code-toolbar">
-        <span class="muted">Remote MCP</span>
+      <div class="code-card-header">
+        <div>
+          <h3>Claude Code — streamable-http</h3>
+          <span class="muted">Remote MCP</span>
+        </div>
         <button type="button" class="btn btn-secondary" data-copy-target="claude-http">Copy</button>
       </div>
-      <pre id="claude-http" class="code-block">claude mcp add skill-vault --transport http {{ endpoint }}
+      <div class="code-card-body">
+        <pre id="claude-http" class="code-block">claude mcp add skill-vault --transport http {{ endpoint }}
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Cursor — stdio (.cursor/mcp.json)</h3>
-      <div class="code-toolbar">
-        <span class="muted">Project config</span>
+      <div class="code-card-header">
+        <h3>Cursor — stdio (.cursor/mcp.json)</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="cursor-stdio">Copy</button>
       </div>
-      <pre id="cursor-stdio" class="code-block">{
+      <div class="code-card-body">
+        <pre id="cursor-stdio" class="code-block">{
   "mcpServers": {
     "skill-vault": {
       "command": "skill-vault",
@@ -92,15 +107,16 @@
   }
 }
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Cursor — streamable-http (.cursor/mcp.json)</h3>
-      <div class="code-toolbar">
-        <span class="muted">Remote URL</span>
+      <div class="code-card-header">
+        <h3>Cursor — streamable-http (.cursor/mcp.json)</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="cursor-http">Copy</button>
       </div>
-      <pre id="cursor-http" class="code-block">{
+      <div class="code-card-body">
+        <pre id="cursor-http" class="code-block">{
   "mcpServers": {
     "skill-vault": {
       "url": "{{ endpoint }}"
@@ -108,56 +124,68 @@
   }
 }
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Codex — stdio (~/.codex/config.toml)</h3>
-      <div class="code-toolbar">
-        <span class="muted">Codex CLI MCP</span>
+      <div class="code-card-header">
+        <h3>Codex — stdio (~/.codex/config.toml)</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="codex-stdio">Copy</button>
       </div>
-      <pre id="codex-stdio" class="code-block">[mcp_servers.skill-vault]
+      <div class="code-card-body">
+        <pre id="codex-stdio" class="code-block">[mcp_servers.skill-vault]
 command = "skill-vault"
 args = ["serve"]
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Codex — streamable-http (~/.codex/config.toml)</h3>
-      <div class="code-toolbar">
-        <span class="muted">Remote MCP URL</span>
+      <div class="code-card-header">
+        <h3>Codex — streamable-http (~/.codex/config.toml)</h3>
         <button type="button" class="btn btn-secondary" data-copy-target="codex-http">Copy</button>
       </div>
-      <pre id="codex-http" class="code-block">[mcp_servers.skill-vault]
+      <div class="code-card-body">
+        <pre id="codex-http" class="code-block">[mcp_servers.skill-vault]
 transport = "http"
 url = "{{ endpoint }}"
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Gemini CLI — stdio</h3>
-      <div class="code-toolbar">
-        <span class="muted">gemini mcp</span>
+      <div class="code-card-header">
+        <div>
+          <h3>Gemini CLI — stdio</h3>
+          <span class="muted">gemini mcp</span>
+        </div>
         <button type="button" class="btn btn-secondary" data-copy-target="gemini-stdio">Copy</button>
       </div>
-      <pre id="gemini-stdio" class="code-block">gemini mcp add skill-vault -- skill-vault serve
+      <div class="code-card-body">
+        <pre id="gemini-stdio" class="code-block">gemini mcp add skill-vault -- skill-vault serve
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
 
     <article class="code-card">
-      <h3>Gemini CLI — streamable-http</h3>
-      <div class="code-toolbar">
-        <span class="muted">$HOME/.gemini/settings.json or CLI</span>
+      <div class="code-card-header">
+        <div>
+          <h3>Gemini CLI — streamable-http</h3>
+          <span class="muted">$HOME/.gemini/settings.json or CLI</span>
+        </div>
         <button type="button" class="btn btn-secondary" data-copy-target="gemini-http">Copy</button>
       </div>
-      <pre id="gemini-http" class="code-block">gemini mcp add skill-vault --transport http {{ endpoint }}
+      <div class="code-card-body">
+        <pre id="gemini-http" class="code-block">gemini mcp add skill-vault --transport http {{ endpoint }}
 # agent_key: paste your SKILL_VAULT_AGENT_KEY from the dashboard onboarding screen (passed as the agent_key tool argument)</pre>
+      </div>
     </article>
   </div>
 </section>
 
-<section class="panel">
-  <h2>Troubleshooting</h2>
+<section class="config-step">
+  <p class="step-badge">Troubleshooting</p>
+  <h2>Common issues</h2>
   <ul>
     <li>Private skills missing? Ensure every private/global tool call includes <code>agent_key</code>.</li>
     <li>

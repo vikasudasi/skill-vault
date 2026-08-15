@@ -33,16 +33,26 @@
   </head>
   <body x-data="theme()">
     {% set GITHUB_URL = "https://github.com/vikasudasi/skill-vault" %}
+    {% set AUTHOR_URL = "https://vikasudasi.github.io" %}
     {% set BLOG_URL = "https://vikasudasi.github.io/blog/2026/skill-vault/" %}
     <header class="page-header public-header">
       <div class="container public-nav">
         <p class="brand"><a href="/">Skill Vault</a></p>
         <nav>
-          <a href="#features">Features</a>
           <a href="/configure">Configure</a>
           <a href="/dashboard">Dashboard</a>
           <a href="{{ BLOG_URL }}">Blog</a>
           <a href="{{ GITHUB_URL }}">GitHub</a>
+          <a href="{{ AUTHOR_URL }}" target="_blank" rel="noopener">Author</a>
+          {% if request.state.user %}
+          <span class="muted">{{ request.state.user["email"] }}</span>
+          <form method="post" action="/logout" class="inline">
+            <button type="submit">Logout</button>
+          </form>
+          {% else %}
+          <a href="/login">Login</a>
+          <a href="/signup">Sign up</a>
+          {% endif %}
           <button
             type="button"
             class="theme-toggle"
@@ -60,24 +70,56 @@
     <main class="container public-main">
       {# Hero — clean typography, gradient accent, clear value prop. #}
       <section class="panel hero">
-        <p class="eyebrow">Self-hosted skill registry for agents</p>
-        <h1 class="hero-headline">
-          One MCP endpoint for <span class="hero-accent">thousands of skills</span>.
-        </h1>
-        <p class="hero-copy">
-          Skill Vault lets agents discover the right skill on demand instead of carrying an
-          ever-growing local skill library in context. Fetch the full SKILL.md only when it matters.
-        </p>
-        <div class="cta-row">
-          <a class="button-link" href="/dashboard">Open Dashboard</a>
-          <a class="button-link button-link-muted" href="/configure">Configure your agent</a>
-          <a class="button-link button-link-muted" href="{{ GITHUB_URL }}">GitHub</a>
+        <div class="hero-grid">
+          <div class="hero-content">
+            <p class="eyebrow">Self-hosted skill registry for agents</p>
+            <h1 class="hero-headline">
+              One MCP endpoint for <span class="gradient-text">thousands of skills</span>.
+            </h1>
+            <p class="hero-copy">
+              Skill Vault lets agents discover the right skill on demand instead of carrying an
+              ever-growing local skill library in context. Fetch the full SKILL.md only when it matters.
+            </p>
+            <div class="cta-row">
+              <a class="button-link" href="/dashboard">Open Dashboard</a>
+              <a class="button-link button-link-muted" href="/configure">Configure your agent</a>
+              <a class="button-link button-link-muted" href="{{ GITHUB_URL }}">GitHub</a>
+            </div>
+          </div>
+          <figure class="hero-media">
+            <img
+              src="{{ url_for('static', path='hero-illustration.png') }}"
+              srcset="{{ url_for('static', path='hero-illustration-640.png') }} 640w,
+                      {{ url_for('static', path='hero-illustration-1024.png') }} 1024w,
+                      {{ url_for('static', path='hero-illustration.png') }} 1376w"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 640px, 720px"
+              alt="AI agents querying a central skill registry"
+            />
+          </figure>
+        </div>
+        <div class="hero-search">
+          <form method="get" action="/browse" class="hero-search-row">
+            <input
+              class="search-input-prominent"
+              type="search"
+              name="q"
+              placeholder="Search global skills…"
+              aria-label="Search global skills"
+            />
+            <button type="submit" class="btn btn-primary">Search</button>
+          </form>
+          <p class="popular-searches muted">
+            Popular:
+            <a href="/browse?q=deploy+hooks">deploy hooks</a>,
+            <a href="/browse?q=sqlite+migrations">sqlite migrations</a>,
+            <a href="/browse?q=code+review">code review</a>
+          </p>
         </div>
       </section>
 
       {# Problem / solution #}
       <section id="features" class="panel">
-        <h2>The problem: context bloat at skill scale</h2>
+        <h2 class="gradient-text">The problem: context bloat at skill scale</h2>
         <p>
           At 1,000–10,000 skills, an agent cannot keep every SKILL.md in active context. Even
           lightweight descriptions can exceed practical token limits (~500K tokens at 10k skills),
@@ -86,7 +128,7 @@
       </section>
 
       <section class="panel">
-        <h2>The solution</h2>
+        <h2 class="gradient-text">The solution</h2>
         <p>
           Wire one MCP server, semantically search for what you need, and fetch the full skill body
           only when it is relevant. This keeps prompts focused while preserving access to a large
@@ -96,7 +138,7 @@
 
       {# Three differentiators as feature cards #}
       <section class="panel">
-        <h2>Three differentiators</h2>
+        <h2 class="gradient-text">Three differentiators</h2>
         <div class="feature-grid">
           <article class="feature-card">
             <h3>One MCP endpoint</h3>
@@ -124,7 +166,7 @@
 
       {# Live endpoint — kept and restyled #}
       <section class="panel endpoint-banner">
-        <h2>Live endpoint</h2>
+        <h2 class="gradient-text">Live endpoint</h2>
         <p class="endpoint-value">
           <code>{{ endpoint }}</code>
         </p>

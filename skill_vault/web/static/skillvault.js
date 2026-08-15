@@ -169,7 +169,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // After an HTMX partial swap, re-bind behaviours on the newly injected nodes
 // so copy buttons, tabs, and code blocks keep working in the fragment.
-document.addEventListener("htmx:afterSwap", function () {
+document.addEventListener("htmx:afterSwap", function (event) {
   runHighlight();
   fromEventButtons("[data-copy-target]", copyFromButton);
+  const target = event.detail && event.detail.target;
+  if (target && target.id === "results") {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 });

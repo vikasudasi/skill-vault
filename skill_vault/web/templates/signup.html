@@ -1,29 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Sign up{% endblock %}
 {% block content %}
-<section class="panel panel-auth">
-  <h2>Create your account</h2>
-  {% if error %}
-  <p class="warning">{{ error }}</p>
-  {% endif %}
-  <form method="post" action="/signup" class="stack">
-    <div class="form-field">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{{ email }}" required />
-    </div>
-    <div class="form-field">
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" minlength="8" required />
-      <span class="hint">At least 8 characters.</span>
-    </div>
-    <div class="form-field">
-      <label for="confirm_password">Confirm password</label>
-      <input id="confirm_password" name="confirm_password" type="password" minlength="8" required />
-    </div>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Sign up</button>
-    </div>
-  </form>
-  <p class="form-note">Already have an account? <a href="/login">Log in</a>.</p>
-</section>
+<div class="auth-page">
+  <section class="panel panel-auth">
+    <p class="auth-wordmark"><span class="gradient-text">Skill Vault</span></p>
+    <h2 class="gradient-text">Create your account</h2>
+    {% if error %}
+    <p class="warning">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="/signup" class="stack">
+      <div class="form-field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="{{ email }}" required />
+      </div>
+      <div class="form-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" minlength="8" required />
+        <span class="hint">At least 8 characters.</span>
+      </div>
+      <div class="form-field">
+        <label for="confirm_password">Confirm password</label>
+        <input id="confirm_password" name="confirm_password" type="password" minlength="8" required />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Sign up</button>
+      </div>
+    </form>
+    <p class="form-note">Already have an account? <a href="/login">Log in</a>.</p>
+  </section>
+</div>
 {% endblock %}

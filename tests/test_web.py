@@ -260,13 +260,15 @@ def test_browse_hides_confidence_without_query_shows_with_query(tmp_path: Path) 
     agent_id = services.auth.create_agent("publisher")
     services.registry.admin_publish(agent_id, _skill("Global Searchable"), "global")
 
-    # browsing with no query -> list_global yields score=0 -> no misleading 0%
+    # browsing with no query -> browse-mode header, no rank badge or confidence %
     empty = client.get("/browse")
     assert empty.status_code == 200
     assert "Global Searchable" in empty.text
+    assert "Browsing 1 global skill" in empty.text
     assert "confidence" not in empty.text
+    assert "rank-badge" not in empty.text
 
-    # during an actual search the relevance confidence IS shown
+    # during an actual search the results header and rank badge are shown
     services.registry.search = lambda *a, **k: [
         SkillCard(
             id="x",
@@ -280,15 +282,20 @@ def test_browse_hides_confidence_without_query_shows_with_query(tmp_path: Path) 
     ]
     with_q = client.get("/browse?q=whatever")
     assert with_q.status_code == 200
-    assert "confidence" in with_q.text
-    assert "85%" in with_q.text
+    assert (
+        'results for "whatever"' in with_q.text
+        or "results for &ldquo;whatever&rdquo;" in with_q.text
+    )
+    assert "rank-badge" in with_q.text
+    assert "confidence" not in with_q.text
+    assert "85%" not in with_q.text
 
 
 def test_browse_fragment_hides_confidence_without_query_shows_with_query(
     tmp_path: Path,
 ) -> None:
-    """The HTMX fragment must preserve the trust badge and the score-gated
-    confidence line exactly like the full page."""
+    """The HTMX fragment must preserve browse/search headers and rank badges
+    exactly like the full page."""
     from skill_vault.models import SkillCard
 
     client, services = _client(tmp_path)
@@ -299,6 +306,7 @@ def test_browse_fragment_hides_confidence_without_query_shows_with_query(
     assert empty.status_code == 200
     assert "Global Searchable" in empty.text
     assert "badge-public" in empty.text
+    assert "Browsing 1 global skill" in empty.text
     assert "confidence" not in empty.text
 
     services.registry.search = lambda *a, **k: [
@@ -314,8 +322,78 @@ def test_browse_fragment_hides_confidence_without_query_shows_with_query(
     ]
     with_q = client.get("/browse?q=whatever&partial=1")
     assert with_q.status_code == 200
-    assert "confidence" in with_q.text
-    assert "85%" in with_q.text
+    assert (
+        'results for "whatever"' in with_q.text
+        or "results for &ldquo;whatever&rdquo;" in with_q.text
+    )
+    assert "rank-badge" in with_q.text
+    assert "confidence" not in with_q.text
+    assert "85%" not in with_q.text
+
+
+def test_browse_results_header_shows_count(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    for n in range(3):
+        services.registry.admin_publish(agent_id, _skill(f"Skill {n}"), "global")
+
+    browse = client.get("/browse")
+    assert browse.status_code == 200
+    assert "Browsing 3 global skills" in browse.text
+
+    search = client.get("/browse?q=Skill")
+    assert search.status_code == 200
+    assert "results for" in search.text
+
+
+def test_browse_empty_states(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    empty_catalog = client.get("/browse")
+    assert empty_catalog.status_code == 200
+    assert "No global skills published yet." in empty_catalog.text
+
+    no_match = client.get("/browse?q=nonexistent-xyz")
+    assert no_match.status_code == 200
+    assert "No skills matched" in no_match.text
+    assert 'href="/browse"' in no_match.text
+
+
+def test_browse_trust_filter_param(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    services.registry.admin_publish(agent_id, _skill("Public Skill"), "global")
+
+    filtered = client.get("/browse?min_trust=verified")
+    assert filtered.status_code == 200
+    assert "Public Skill" not in filtered.text
+    assert "Browsing 0 global skills" in filtered.text
+
+    all_skills = client.get("/browse")
+    assert "Public Skill" in all_skills.text
+
+
+def test_browse_sort_param(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    services.registry.admin_publish(agent_id, _skill("Zebra Skill"), "global")
+    services.registry.admin_publish(agent_id, _skill("Alpha Skill"), "global")
+
+    by_name = client.get("/browse?sort=name")
+    assert by_name.status_code == 200
+    assert by_name.text.index("Alpha Skill") < by_name.text.index("Zebra Skill")
+    assert "sorted A" in by_name.text or "sorted A&ndash;Z" in by_name.text
+
+
+def test_browse_skill_title_is_link(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    published = services.registry.admin_publish(agent_id, _skill("Linked Skill"), "global")
+
+    response = client.get("/browse")
+    assert response.status_code == 200
+    assert f'href="/skills/{published.id}"' in response.text
+    assert "browse-card-title" in response.text
 
 
 def test_browse_hx_request_returns_fragment_not_full_page(tmp_path: Path) -> None:

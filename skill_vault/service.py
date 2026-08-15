@@ -428,14 +428,51 @@ class RegistryService:
         ).fetchall()
         return [self._card_from_row(r) for r in rows]
 
-    def list_global(self, limit: int = 20, offset: int = 0) -> list[SkillCard]:
+    def count_global(self, min_trust: str | None = None) -> int:
+        """Return the number of published global skills (optionally filtered by trust tier)."""
+        if min_trust is None:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS c FROM skills WHERE visibility = 'global'"
+            ).fetchone()
+            return int(row["c"])
+        rows = self._db.execute(
+            "SELECT v.id AS version_id FROM skills s "
+            "JOIN skill_versions v ON v.id = s.current_version_id "
+            "WHERE s.visibility = 'global'"
+        ).fetchall()
+        min_rank = tier_rank(min_trust)
+        return sum(
+            1 for row in rows if tier_rank(self._trust.resolve_tier(row["version_id"])) >= min_rank
+        )
+
+    def list_global(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+        *,
+        sort: str = "newest",
+        min_trust: str | None = None,
+    ) -> list[SkillCard]:
+        order = "s.updated_at DESC" if sort != "name" else "v.name COLLATE NOCASE ASC"
+        if min_trust is None:
+            rows = self._db.execute(
+                "SELECT s.id AS skill_id, v.id AS version_id, v.name, v.description, v.tags, "
+                "v.version FROM skills s JOIN skill_versions v ON v.id = s.current_version_id "
+                f"WHERE s.visibility = 'global' ORDER BY {order} LIMIT ? OFFSET ?",
+                (max(limit, 1), max(offset, 0)),
+            ).fetchall()
+            return [self._card_from_row(r) for r in rows]
         rows = self._db.execute(
             "SELECT s.id AS skill_id, v.id AS version_id, v.name, v.description, v.tags, "
             "v.version FROM skills s JOIN skill_versions v ON v.id = s.current_version_id "
-            "WHERE s.visibility = 'global' ORDER BY s.updated_at DESC LIMIT ? OFFSET ?",
-            (max(limit, 1), max(offset, 0)),
+            f"WHERE s.visibility = 'global' ORDER BY {order}",
         ).fetchall()
-        return [self._card_from_row(r) for r in rows]
+        cards = [self._card_from_row(r) for r in rows]
+        min_rank = tier_rank(min_trust)
+        filtered = [card for card in cards if tier_rank(card.trust) >= min_rank]
+        start = max(offset, 0)
+        end = start + max(limit, 1)
+        return filtered[start:end]
 
     # -- skill files --------------------------------------------------------
 

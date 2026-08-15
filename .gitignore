@@ -39,3 +39,8 @@ run/
 storage/
 qdrant_data/
 .qdrant-initialized
+
+# Agent tooling / local scripts / planning specs
+.cursor/
+run_checks.sh
+SPEC-*.md

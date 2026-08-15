@@ -3,7 +3,7 @@
 {% block content %}
 <section class="panel detail-header">
   <div class="detail-title-row">
-    <h2 class="detail-name">{{ agent["name"] }}</h2>
+    <h2 class="detail-name gradient-text">{{ agent["name"] }}</h2>
     <span class="badge badge-{{ 'verified' if agent['is_super_agent'] else 'user' }}">{{ 'super agent' if agent['is_super_agent'] else 'agent' }}</span>
   </div>
   <p class="muted detail-id"><code>{{ agent["id"] }}</code></p>
@@ -15,9 +15,13 @@
 
 {# Alpine-powered tab switcher: x-show drives the visible panel. #}
 <section class="panel" x-data="skillTabs('{{ active_tab }}')">
-  <div class="tabs" role="tablist">
-    <button type="button" class="tab-button" @click="setTab('personal')" :class="{ 'is-active': is('personal') }" role="tab" :aria-selected="is('personal') ? 'true' : 'false'">Personal</button>
-    <button type="button" class="tab-button" @click="setTab('global')" :class="{ 'is-active': is('global') }" role="tab" :aria-selected="is('global') ? 'true' : 'false'">Global</button>
+  <div class="tabs-segmented" role="tablist">
+    <button type="button" class="tab-button" @click="setTab('personal')" :class="{ 'is-active': is('personal') }" role="tab" :aria-selected="is('personal') ? 'true' : 'false'">
+      Personal<span class="tab-count">({{ personal_skills | length }})</span>
+    </button>
+    <button type="button" class="tab-button" @click="setTab('global')" :class="{ 'is-active': is('global') }" role="tab" :aria-selected="is('global') ? 'true' : 'false'">
+      Global{% if global_total is not none %}<span class="tab-count">({{ global_total }})</span>{% endif %}
+    </button>
   </div>
 
   <div x-show="is('personal')" x-cloak>
@@ -26,10 +30,19 @@
       {% for skill in personal_skills %}
       <li>
         <div>
-          <a href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
-          <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-          <span class="muted">v{{ skill.version }}</span>
-          <p>{{ skill.description }}</p>
+          <div class="browse-card-header">
+            <a class="browse-card-title" href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
+            <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+            <span class="muted">v{{ skill.version }}</span>
+          </div>
+          {% if skill.tags %}
+          <div class="tag-chips">
+            {% for tag in skill.tags %}
+            <span class="tag-chip">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <p class="browse-description">{{ skill.description }}</p>
         </div>
         <div class="actions">
           <a class="btn btn-secondary" href="/agents/{{ agent_id }}/skills/{{ skill.id }}/edit">Edit</a>
@@ -49,32 +62,73 @@
     <form method="get" action="/agents/{{ agent_id }}" class="stack">
       <input type="hidden" name="tab" value="global" />
       <label for="q">Search global skills</label>
-      <input id="q" name="q" type="search" value="{{ q }}" />
+      <div class="search-row">
+        <input id="q" name="q" type="search" class="search-input-prominent" value="{{ q }}" placeholder="Search global skills…" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
       <input type="hidden" name="page" value="1" />
-      <button type="submit" class="btn btn-primary">Search</button>
     </form>
+    <p class="search-hint">Search by meaning, not keywords — try describing the capability you need.</p>
+
+    <div class="results-header">
+      {% if q %}
+      <h3>Search results for &ldquo;{{ q }}&rdquo;</h3>
+      {% elif global_total is not none %}
+      <h3>Browsing {{ global_total }} global skill{{ 's' if global_total != 1 else '' }}</h3>
+      {% else %}
+      <h3>Browsing global skills</h3>
+      {% endif %}
+    </div>
+
     {% if global_skills %}
-    <ul class="list">
+    <ul class="list browse-list">
       {% for skill in global_skills %}
-      <li>
+      <li class="browse-card">
         <div>
-          <a href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
-          <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
-          {% if skill.score > 0 %}<span class="muted">confidence {{ "%.0f"|format(skill.score * 100) }}%</span>{% endif %}
-          <p>{{ skill.description }}</p>
+          <div class="browse-card-header">
+            <a class="browse-card-title" href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
+            <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>
+            <span class="muted">v{{ skill.version }}</span>
+            {% if q %}
+            <span class="rank-badge">#{{ loop.index }}</span>
+            {% if skill.score >= 0.5 %}
+            <span class="match-hint" title="semantic similarity to your query">match</span>
+            {% endif %}
+            {% endif %}
+          </div>
+          {% if skill.tags %}
+          <div class="tag-chips">
+            {% for tag in skill.tags %}
+            <span class="tag-chip">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <p class="browse-description">{{ skill.description }}</p>
         </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p class="muted">No results.</p>
+    <div class="empty-state">
+      {% if q %}
+      <p><strong>No skills matched</strong></p>
+      <p class="muted">Try a shorter query or different wording.</p>
+      {% else %}
+      <p><strong>No global skills published yet.</strong></p>
+      {% endif %}
+    </div>
     {% endif %}
     <div class="pager">
+      {% if global_total is not none and global_total > 0 %}
+      <span class="pager-meta muted">Page {{ page }} &middot; Showing {{ start }}&ndash;{{ end }} of {{ global_total }}</span>
+      {% elif q and start > 0 %}
+      <span class="pager-meta muted">Page {{ page }} &middot; Showing {{ start }}&ndash;{{ end }}</span>
+      {% endif %}
       {% if page > 1 %}
-      <a href="/agents/{{ agent_id }}?tab=global&q={{ q }}&page={{ prev_page }}">Previous</a>
+      <a href="/agents/{{ agent_id }}?tab=global&q={{ q | urlencode }}&page={{ prev_page }}">Previous</a>
       {% endif %}
       {% if has_next %}
-      <a href="/agents/{{ agent_id }}?tab=global&q={{ q }}&page={{ next_page }}">Next</a>
+      <a href="/agents/{{ agent_id }}?tab=global&q={{ q | urlencode }}&page={{ next_page }}">Next</a>
       {% endif %}
     </div>
   </div>

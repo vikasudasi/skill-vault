@@ -2,11 +2,15 @@
 {% block title %}Global Browse{% endblock %}
 {% block content %}
 <section class="panel">
-  <h2>Global Skills</h2>
+  <h2 class="page-heading gradient-text">Global Skills</h2>
+  <p class="page-subtitle">
+    Search the shared skill catalog by meaning — discover capabilities published by curators and agents worldwide.
+  </p>
   {# Search-as-you-type: the input fires an HTMX GET on input (debounced 300ms)
      and on the native `search` event (e.g. clearing via the X). The whole form
-     is included so `q` and the page=1 reset are sent; #results is swapped with
-     the fragment response and the URL is pushed for shareable searches. #}
+     is included so `q`, page=1 reset, and filter/sort params are sent; #results
+     is swapped with the fragment response and the URL is pushed for shareable
+     searches. #}
   <form id="search-form" method="get" action="/browse" class="stack"
         hx-get="/browse" hx-target="#results" hx-trigger="submit">
     <label for="q">Search</label>
@@ -15,20 +19,28 @@
         id="q"
         name="q"
         type="search"
+        class="search-input-prominent"
         value="{{ q }}"
         placeholder="Search global skills…"
         hx-get="/browse"
         hx-trigger="input changed delay:300ms, search"
         hx-include="#search-form"
         hx-target="#results"
-        hx-indicator="#search-indicator"
+        hx-indicator="#results"
         hx-push-url="true"
         hx-swap="innerHTML"
       />
       <span id="search-indicator" class="htmx-indicator">Searching…</span>
-      <button type="submit">Search</button>
     </div>
+    <p class="search-hint">Search by meaning, not keywords — try &ldquo;deploy hooks&rdquo;, &ldquo;sqlite migrations&rdquo;, or describe a problem you&rsquo;re solving.</p>
+    {% if q %}
+    <p class="clear-search-row">
+      <a href="/browse{% if min_trust %}?min_trust={{ min_trust }}{% endif %}{% if sort and sort != 'newest' %}{{ '&' if min_trust else '?' }}sort={{ sort }}{% endif %}">Clear search</a>
+    </p>
+    {% endif %}
     <input type="hidden" name="page" value="1" />
+    <input type="hidden" name="min_trust" id="min_trust" value="{{ min_trust or '' }}" />
+    <input type="hidden" name="sort" id="sort" value="{{ sort or 'newest' }}" />
   </form>
 </section>
 
