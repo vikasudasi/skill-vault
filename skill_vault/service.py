@@ -29,6 +29,7 @@ from skill_vault.models import (
     SkillFile,
     SkillFileDetail,
     SkillInput,
+    SkillInputFile,
 )
 from skill_vault.search import SearchService
 from skill_vault.trust import (
@@ -619,6 +620,15 @@ class RegistryService:
                 now,
             ),
         )
+        if skill.files:
+            for f in skill.files:
+                file_id = str(uuid.uuid4())
+                file_digest = content_hash(f.content.encode("utf-8"))
+                self._db.execute(
+                    "INSERT INTO skill_version_files(id, skill_version_id, kind, filename, "
+                    "content, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (file_id, version_id, f.kind, f.filename.strip(), f.content, file_digest, now),
+                )
 
     def _load_skill(self, identifier: str) -> Any:
         return self._db.execute("SELECT * FROM skills WHERE id = ?", (identifier,)).fetchone()
@@ -693,7 +703,25 @@ def _build_payload(skill: SkillInput) -> bytes:
         triggers=skill.triggers,
         meta_json=skill.meta,
         body=skill.body,
+        files=_skill_input_files_to_svc(skill.files) if skill.files else None,
     )
+
+
+def _skill_input_files_to_svc(files: list[SkillInputFile] | None) -> list[SkillFile] | None:
+    if not files:
+        return None
+    return [
+        SkillFile(
+            id="",
+            skill_version_id="",
+            kind=f.kind,
+            filename=f.filename,
+            content=f.content,
+            content_hash="",
+            created_at="",
+        )
+        for f in files
+    ]
 
 
 def _as_list(value: Any) -> list[str]:

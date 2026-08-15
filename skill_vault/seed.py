@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from skill_vault.models import SkillInput
+from skill_vault.models import SkillFile, SkillInput, SkillInputFile
 from skill_vault.service import _build_payload
 from skill_vault.trust import (
     TIER_VERIFIED,
@@ -70,6 +70,7 @@ def parse_skill_file(path: Path) -> SeedSkill:
             "prerequisites": _optional_list_of_str(metadata, "prerequisites"),
             "source": source,
         },
+        files=_seed_skill_files(path.parent),
     )
     verify = _optional_bool(metadata, "verify", default=False, path=path)
     return SeedSkill(skill=skill, verify=verify, source=source, path=path)
@@ -141,6 +142,7 @@ def recheck_signatures(services: Any, seed_dir: str | Path, curator_key: str | N
             triggers=json.loads(existing["triggers"] or "[]"),
             meta_json=json.loads(existing["meta_json"] or "{}"),
             body=str(existing["body"]),
+            files=_load_skill_files_db(services.db, str(existing["vid"])),
         )
         signature = sign(payload, curator_key)
         services.trust.record(
@@ -170,6 +172,50 @@ def _seed_files(seed_dir: Path) -> list[Path]:
             if skill_file.is_file():
                 files.append(skill_file)
     return files
+
+
+def _seed_skill_files(skill_dir: Path) -> list[SkillInputFile] | None:
+    """Read ``scripts/*`` and ``references/*`` from a skill's directory.
+
+    Returns ``None`` when the directory has no script/reference files, so that
+    the SkillInput.files default stays ``None`` (body-only canonical payload).
+    """
+    gathered: list[SkillInputFile] = []
+    for kind, subdir in (("script", "scripts"), ("reference", "references")):
+        d = skill_dir / subdir
+        if d.is_dir():
+            for fp in sorted(d.iterdir()):
+                if fp.is_file():
+                    gathered.append(
+                        SkillInputFile(
+                            kind=kind,
+                            filename=fp.name,
+                            content=fp.read_text(encoding="utf-8"),
+                        )
+                    )
+    return gathered or None
+
+
+def _load_skill_files_db(db: Any, version_id: str) -> list[SkillFile] | None:
+    rows = db.execute(
+        "SELECT kind, filename, content FROM skill_version_files "
+        "WHERE skill_version_id = ? ORDER BY filename",
+        (version_id,),
+    ).fetchall()
+    if not rows:
+        return None
+    return [
+        SkillFile(
+            id="",
+            skill_version_id=version_id,
+            kind=r["kind"],
+            filename=r["filename"],
+            content=r["content"],
+            content_hash="",
+            created_at="",
+        )
+        for r in rows
+    ]
 
 
 def _split_frontmatter(text: str, path: Path) -> tuple[str, str]:

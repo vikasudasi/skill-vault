@@ -202,3 +202,96 @@ def test_seed_search_returns_ranged_results(tmp_path):
     assert len(cards) >= 15
     names = {c.name for c in cards}
     assert "docker-compose-services" in names
+
+
+# -- seed file attachments ----------------------------------------------
+
+
+def _count_seed_files_on_disk() -> int:
+    total = 0
+    for d in SEED_SKILLS.iterdir():
+        if not d.is_dir():
+            continue
+        for sub in ("scripts", "references"):
+            p = d / sub
+            if p.is_dir():
+                total += sum(1 for f in p.iterdir() if f.is_file())
+    return total
+
+
+def test_seed_attaches_all_committed_script_and_reference_files(tmp_path):
+    """A fresh seed of the real curated library attaches every committed file."""
+    priv, pub = generate_curator_keypair()
+    services = _services(tmp_path, known_public_keys=[pub])
+    seed_skills(services, SEED_SKILLS, curator_key=priv)
+
+    expected = _count_seed_files_on_disk()
+    assert expected > 0
+
+    got = services.db.execute("SELECT COUNT(*) FROM skill_version_files").fetchone()[0]
+    assert got == expected, f"attached {got} files, expected {expected}"
+
+    # spot-check: a known skill's files are present and kind-tagged correctly
+    row = services.db.execute(
+        "SELECT v.id AS vid FROM skills s JOIN skill_versions v "
+        "ON v.id = s.current_version_id WHERE s.name = 'git-workflow'"
+    ).fetchone()
+    files = services.db.execute(
+        "SELECT kind, filename FROM skill_version_files WHERE skill_version_id = ?",
+        (row["vid"],),
+    ).fetchall()
+    kinds = {f["kind"] for f in files}
+    assert kinds <= {"script", "reference"}
+    assert files, "git-workflow should have attached files"
+
+
+def test_seed_bundles_script_and_reference_files(tmp_path):
+    """Fresh seed of a skill with scripts/ and references/ dirs attaches them."""
+    priv, pub = generate_curator_keypair()
+    services = _services(tmp_path, known_public_keys=[pub])
+
+    skill_dir = tmp_path / "test-seed-files"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: test-seed-files\n"
+        "description: seed with attached scripts/references\n"
+        "source: Skill Vault curated library\n"
+        "verify: true\n"
+        "---\n"
+        "## Body\n\nLorem ipsum.\n"
+    )
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "run.py").write_text("print('hello')\n")
+    refs_dir = skill_dir / "references"
+    refs_dir.mkdir()
+    (refs_dir / "api.md").write_text("# API Reference\n\nEndpoint list.\n")
+
+    count = seed_skills(services, tmp_path, curator_key=priv)
+    assert count == 1  # one skill seeded
+
+    row = services.db.execute(
+        "SELECT s.id, v.id AS vid FROM skills s JOIN skill_versions v "
+        "ON v.id = s.current_version_id WHERE s.name = 'test-seed-files'"
+    ).fetchone()
+    assert row is not None
+
+    # trust tier
+    assert services.trust.resolve_tier(row["vid"]) == TIER_VERIFIED
+
+    # signature verifies (file-inclusive payload)
+    detail = services.registry.get(row["id"])
+    assert detail.verified is True
+    assert detail.files is not None
+    assert len(detail.files) == 2
+
+    by_name = {f.filename: f for f in detail.files}
+    assert by_name["run.py"].kind == "script"
+    assert by_name["api.md"].kind == "reference"
+
+    # file content retrievable end-to-end
+    for f in detail.files:
+        full = services.registry.get_skill_file(f.id)
+        assert full.content
+        assert full.kind in ("script", "reference")

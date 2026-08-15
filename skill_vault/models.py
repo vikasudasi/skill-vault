@@ -73,6 +73,12 @@ class SkillFile:
     created_at: str
 
 
+class SkillInputFile(BaseModel):
+    kind: str = Field(..., pattern=r"^(script|reference)$")
+    filename: str = Field(..., min_length=1, max_length=255)
+    content: str
+
+
 class SkillInput(BaseModel):
     name: str
     description: str
@@ -80,12 +86,7 @@ class SkillInput(BaseModel):
     triggers: list[str] = Field(default_factory=list)
     body: str
     meta: dict[str, Any] = Field(default_factory=dict)
-
-
-class SkillInputFile(BaseModel):
-    kind: str = Field(..., pattern=r"^(script|reference)$")
-    filename: str = Field(..., min_length=1, max_length=255)
-    content: str
+    files: list[SkillInputFile] | None = None
 
 
 class SkillFileDetail(BaseModel):
