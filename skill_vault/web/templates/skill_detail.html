@@ -73,4 +73,55 @@
   <p class="muted">No body content.</p>
   {% endif %}
 </section>
+
+<section class="panel">
+  <h3>Attached files</h3>
+  {% if skill.files %}
+  <ul class="list attached-files">
+    {% for file in skill.files %}
+    <li>
+      <div>
+        <span class="badge badge-{{ 'verified' if file.kind == 'script' else 'user' }}">{{ file.kind }}</span>
+        <a href="/skills/{{ skill.id }}/files/{{ file.id }}"><strong>{{ file.filename }}</strong></a>
+        <span class="muted"><code>{{ file.content_hash[:12] }}…</code></span>
+        <span class="muted">{{ file.created_at }}</span>
+      </div>
+      {% if agent_id %}
+      <div class="actions">
+        <form method="post" action="/agents/{{ agent_id }}/skills/{{ skill.id }}/files/{{ file.id }}/delete" class="inline">
+          <button type="submit" class="btn btn-danger" data-confirm="Delete this file?">Delete</button>
+        </form>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No attached files.</p>
+  {% endif %}
+
+  {% if agent_id %}
+  <form method="post" action="/agents/{{ agent_id }}/skills/{{ skill.id }}/files" class="stack file-upload-form">
+    <h4>Upload file</h4>
+    <div class="form-field">
+      <label for="kind">Kind</label>
+      <select id="kind" name="kind" required>
+        <option value="script">script</option>
+        <option value="reference">reference</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="filename">Filename</label>
+      <input id="filename" name="filename" type="text" required />
+    </div>
+    <div class="form-field">
+      <label for="content">Content</label>
+      <textarea id="content" name="content" rows="8" required></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Upload</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
 {% endblock %}

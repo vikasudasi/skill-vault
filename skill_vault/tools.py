@@ -14,7 +14,15 @@ from fastmcp import FastMCP
 
 from skill_vault.db import locked
 from skill_vault.errors import SkillVaultError
-from skill_vault.models import DeleteResult, PublishResult, SkillCard, SkillDetail, SkillInput
+from skill_vault.models import (
+    DeleteResult,
+    PublishResult,
+    SkillCard,
+    SkillDetail,
+    SkillFile,
+    SkillFileDetail,
+    SkillInput,
+)
 from skill_vault.service import RegistryService
 
 
@@ -161,3 +169,40 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
     def list_global_skills(limit: int = 20, offset: int = 0) -> list[SkillCard]:
         with locked(), _translate_errors():
             return registry.list_global(limit=limit, offset=offset)
+
+    @server.tool(
+        description=(
+            "Attach a script or reference file to an existing skill version. kind must be "
+            "'script' or 'reference'. filename must be unique within the version. Returns file "
+            "metadata (no content in list views; use get_skill_file for full content)."
+        )
+    )
+    def upload_skill_file(
+        skill_version_id: str, kind: str, filename: str, content: str
+    ) -> SkillFileDetail:
+        with locked(), _translate_errors():
+            sf = registry.add_skill_file(skill_version_id, kind, filename, content)
+            return SkillFileDetail(
+                id=sf.id,
+                kind=sf.kind,
+                filename=sf.filename,
+                content_hash=sf.content_hash,
+                created_at=sf.created_at,
+            )
+
+    @server.tool(
+        description=(
+            "List attached script/reference files for a skill version (metadata only, no content). "
+            "Use get_skill_file to fetch full file content."
+        )
+    )
+    def list_skill_files(skill_version_id: str) -> list[SkillFileDetail]:
+        with locked(), _translate_errors():
+            return registry.list_skill_files(skill_version_id)
+
+    @server.tool(
+        description=("Fetch the full content of an attached script or reference file by file id.")
+    )
+    def get_skill_file(file_id: str) -> SkillFile:
+        with locked(), _translate_errors():
+            return registry.get_skill_file(file_id)

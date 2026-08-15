@@ -1,0 +1,75 @@
+# .github/workflows/ci.yml — Quality gate: lint → typecheck → format → test
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Static checks (fast, runs first) ──────────────────────────────────
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install ruff
+      - run: ruff check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - run: mypy .
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install ruff
+      - run: ruff format --check .
+
+  # ── Tests (can be slower, runs after static checks pass) ──────────────
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, format-check]
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - run: pytest --cov --cov-fail-under=80
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: .coverage
+
+  # ── All gates passed ──────────────────────────────────────────────────
+
+  gate:
+    needs: [lint, typecheck, format-check, test]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✓ All checks passed"

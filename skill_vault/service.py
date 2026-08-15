@@ -21,7 +21,15 @@ from skill_vault.errors import (
     InvalidSkillError,
     NotFoundError,
 )
-from skill_vault.models import DeleteResult, PublishResult, SkillCard, SkillDetail, SkillInput
+from skill_vault.models import (
+    DeleteResult,
+    PublishResult,
+    SkillCard,
+    SkillDetail,
+    SkillFile,
+    SkillFileDetail,
+    SkillInput,
+)
 from skill_vault.search import SearchService
 from skill_vault.trust import (
     TIER_VERIFIED,
@@ -154,6 +162,7 @@ class RegistryService:
             content_hash=row["content_hash"],
             verified=bool(sig["verified"]),
             owner=row["owner_agent_id"],
+            files=self.list_skill_files(row["version_id"]),
         )
 
     # -- publish / update ---------------------------------------------------
@@ -427,6 +436,105 @@ class RegistryService:
         ).fetchall()
         return [self._card_from_row(r) for r in rows]
 
+    # -- skill files --------------------------------------------------------
+
+    def current_version_id(self, skill_id: str) -> str:
+        row = self._load_skill(skill_id)
+        if row is None or not row["current_version_id"]:
+            raise NotFoundError(f"no skill matches {skill_id!r}")
+        return str(row["current_version_id"])
+
+    def add_skill_file(self, version_id: str, kind: str, filename: str, content: str) -> SkillFile:
+        with locked():
+            row = self._load_version_row(version_id)
+            if row is None:
+                raise NotFoundError(f"no skill version matches {version_id!r}")
+            if kind not in ("script", "reference"):
+                raise InvalidSkillError(f"kind must be 'script' or 'reference', got {kind!r}")
+            if not filename.strip():
+                raise InvalidSkillError("filename is required")
+
+            file_id = str(uuid.uuid4())
+            digest = content_hash(content.encode("utf-8"))
+            now = _utc_now()
+            self._db.execute(
+                "INSERT INTO skill_version_files(id, skill_version_id, kind, filename, content, "
+                "content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (file_id, version_id, kind, filename.strip(), content, digest, now),
+            )
+            self._recompute_version_hash(version_id, row)
+            self._db.commit()
+            return SkillFile(
+                id=file_id,
+                skill_version_id=version_id,
+                kind=kind,
+                filename=filename.strip(),
+                content=content,
+                content_hash=digest,
+                created_at=now,
+            )
+
+    def list_skill_files(self, version_id: str) -> list[SkillFileDetail]:
+        return [
+            SkillFileDetail(
+                id=f.id,
+                kind=f.kind,
+                filename=f.filename,
+                content_hash=f.content_hash,
+                created_at=f.created_at,
+            )
+            for f in self._list_skill_files_raw(version_id)
+        ]
+
+    def get_skill_file(self, file_id: str) -> SkillFile:
+        row = self._db.execute(
+            "SELECT id, skill_version_id, kind, filename, content, content_hash, created_at "
+            "FROM skill_version_files WHERE id = ?",
+            (file_id,),
+        ).fetchone()
+        if row is None:
+            raise NotFoundError(f"no skill file matches {file_id!r}")
+        return _skill_file_from_row(row)
+
+    def delete_skill_file(self, file_id: str) -> None:
+        with locked():
+            row = self._db.execute(
+                "SELECT id, skill_version_id FROM skill_version_files WHERE id = ?",
+                (file_id,),
+            ).fetchone()
+            if row is None:
+                raise NotFoundError(f"no skill file matches {file_id!r}")
+            version_row = self._load_version_row(row["skill_version_id"])
+            self._db.execute("DELETE FROM skill_version_files WHERE id = ?", (file_id,))
+            if version_row is not None:
+                self._recompute_version_hash(row["skill_version_id"], version_row)
+            self._db.commit()
+
+    def _list_skill_files_raw(self, version_id: str) -> list[SkillFile]:
+        rows = self._db.execute(
+            "SELECT id, skill_version_id, kind, filename, content, content_hash, created_at "
+            "FROM skill_version_files WHERE skill_version_id = ? ORDER BY filename",
+            (version_id,),
+        ).fetchall()
+        return [_skill_file_from_row(r) for r in rows]
+
+    def _recompute_version_hash(self, version_id: str, row: Any) -> None:
+        files = self._list_skill_files_raw(version_id)
+        payload = canonical_payload(
+            name=row["name"],
+            description=row["description"],
+            tags=_as_list(row["tags"]),
+            triggers=_as_list(row["triggers"]),
+            meta_json=_as_dict(row["meta_json"]),
+            body=row["body"],
+            files=files or None,
+        )
+        digest = content_hash(payload)
+        self._db.execute(
+            "UPDATE skill_versions SET content_hash = ? WHERE id = ?",
+            (digest, version_id),
+        )
+
     # -- internal helpers ---------------------------------------------------
 
     def _authorize_read(self, row: Any, ctx: AgentContext) -> None:
@@ -553,6 +661,7 @@ class RegistryService:
         return self._load_version_row(identifier)
 
     def _payload_for(self, row: Any) -> bytes:
+        files = self._list_skill_files_raw(row["version_id"])
         return canonical_payload(
             name=row["name"],
             description=row["description"],
@@ -560,7 +669,20 @@ class RegistryService:
             triggers=_as_list(row["triggers"]),
             meta_json=_as_dict(row["meta_json"]),
             body=row["body"],
+            files=files or None,
         )
+
+
+def _skill_file_from_row(row: Any) -> SkillFile:
+    return SkillFile(
+        id=row["id"],
+        skill_version_id=row["skill_version_id"],
+        kind=row["kind"],
+        filename=row["filename"],
+        content=row["content"],
+        content_hash=row["content_hash"],
+        created_at=row["created_at"],
+    )
 
 
 def _build_payload(skill: SkillInput) -> bytes:

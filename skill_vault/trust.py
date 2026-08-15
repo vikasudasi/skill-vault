@@ -30,6 +30,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from skill_vault.errors import ForbiddenError, IntegrityError
+from skill_vault.models import SkillFile
 
 TIER_VERIFIED = "verified"
 TIER_USER = "user"
@@ -63,9 +64,10 @@ def canonical_payload(
     triggers: Iterable[str],
     meta_json: dict[str, Any],
     body: str,
+    files: list[SkillFile] | None = None,
 ) -> bytes:
     """Deterministic serialization of a skill's content, suitable for hashing/signing."""
-    payload = {
+    payload: dict[str, Any] = {
         "name": name,
         "description": description,
         "tags": sorted(tags),
@@ -73,6 +75,18 @@ def canonical_payload(
         "meta": meta_json,
         "body": body,
     }
+    if files:
+        sorted_files = sorted(files, key=lambda f: f.filename)
+        file_lines = [f"{f.kind}:{f.filename}:{f.content}" for f in sorted_files]
+        payload = {
+            "name": name,
+            "description": description,
+            "files": file_lines,
+            "tags": sorted(tags),
+            "triggers": sorted(triggers),
+            "meta": meta_json,
+            "body": body,
+        }
     return canonical_json(payload).encode("utf-8")
 
 

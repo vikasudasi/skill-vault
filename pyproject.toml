@@ -64,9 +64,11 @@ include = ["skill_vault*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["skill_vault/data/", "scripts/", ".filegen_bodies/", ".filegen_manifest/"]
 
 [tool.mypy]
 python_version = "3.11"
+exclude = ["skill_vault/data/", "scripts/"]
 warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true

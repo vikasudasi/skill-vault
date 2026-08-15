@@ -375,6 +375,77 @@ def test_skill_detail_shows_metadata_and_body(tmp_path: Path) -> None:
     assert "Skill file" in response.text
 
 
+def test_skill_detail_shows_attached_files_section(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path)
+    agent_id = services.auth.create_agent("file-publisher")
+    result = services.registry.admin_publish(agent_id, _skill("File Host"), "global")
+    version_id = services.registry.current_version_id(result.id)
+    services.registry.add_skill_file(version_id, "script", "deploy.sh", "echo deploy")
+
+    detail = client.get(f"/skills/{result.id}")
+    assert detail.status_code == 200
+    assert "Attached files" in detail.text
+    assert "deploy.sh" in detail.text
+    assert "script" in detail.text
+
+
+def test_skill_file_detail_returns_content(tmp_path: Path) -> None:
+    client, services = _client(tmp_path)
+    agent_id = services.auth.create_agent("publisher")
+    result = services.registry.admin_publish(agent_id, _skill("File Viewer"), "global")
+    version_id = services.registry.current_version_id(result.id)
+    skill_file = services.registry.add_skill_file(
+        version_id, "reference", "notes.md", "extra context here"
+    )
+
+    response = client.get(f"/skills/{result.id}/files/{skill_file.id}")
+    assert response.status_code == 200
+    assert "extra context here" in response.text
+    assert "notes.md" in response.text
+
+
+def test_upload_and_delete_skill_file_via_web(tmp_path: Path) -> None:
+    client, services = _authed_client(tmp_path)
+    agent_id = services.auth.create_agent("file-agent")
+    result = services.registry.admin_publish(agent_id, _skill("Mutable Files"), "global")
+
+    empty = client.get(f"/skills/{result.id}")
+    assert empty.status_code == 200
+    assert "No attached files." in empty.text
+
+    upload = client.post(
+        f"/agents/{agent_id}/skills/{result.id}/files",
+        data={
+            "kind": "script",
+            "filename": "run.sh",
+            "content": "#!/bin/bash\necho hello",
+        },
+        follow_redirects=False,
+    )
+    assert upload.status_code == 303
+
+    after_upload = client.get(f"/skills/{result.id}")
+    assert after_upload.status_code == 200
+    assert "run.sh" in after_upload.text
+    assert "Attached files" in after_upload.text
+
+    version_id = services.registry.current_version_id(result.id)
+    files = services.registry.list_skill_files(version_id)
+    assert len(files) == 1
+    file_id = files[0].id
+
+    delete = client.post(
+        f"/agents/{agent_id}/skills/{result.id}/files/{file_id}/delete",
+        follow_redirects=False,
+    )
+    assert delete.status_code == 303
+
+    after_delete = client.get(f"/skills/{result.id}")
+    assert after_delete.status_code == 200
+    assert "run.sh" not in after_delete.text
+    assert "No attached files." in after_delete.text
+
+
 def test_key_management_rotate_and_revoke(tmp_path: Path) -> None:
     client, services = _authed_client(tmp_path)
     onboard = services.auth.onboard("key-agent")

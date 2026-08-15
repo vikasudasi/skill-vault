@@ -62,6 +62,17 @@ class TrustRecord:
     verified_at: str | None
 
 
+@dataclass(slots=True)
+class SkillFile:
+    id: str
+    skill_version_id: str
+    kind: str
+    filename: str
+    content: str
+    content_hash: str
+    created_at: str
+
+
 class SkillInput(BaseModel):
     name: str
     description: str
@@ -69,6 +80,20 @@ class SkillInput(BaseModel):
     triggers: list[str] = Field(default_factory=list)
     body: str
     meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class SkillInputFile(BaseModel):
+    kind: str = Field(..., pattern=r"^(script|reference)$")
+    filename: str = Field(..., min_length=1, max_length=255)
+    content: str
+
+
+class SkillFileDetail(BaseModel):
+    id: str
+    kind: str
+    filename: str
+    content_hash: str
+    created_at: str
 
 
 class SkillCard(BaseModel):
@@ -92,6 +117,7 @@ class SkillDetail(BaseModel):
     content_hash: str
     verified: bool
     owner: str | None
+    files: list[SkillFileDetail] | None = None
 
 
 class PublishResult(BaseModel):

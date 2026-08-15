@@ -1,0 +1,13 @@
+<ul class="space-y-2">
+{% if query %}
+  <p class="text-sm text-gray-500 mb-2">{{ items|length }} result(s) for "{{ query }}"</p>
+{% endif %}
+{% for item in items %}
+  <li class="p-3 bg-white rounded shadow-sm border border-gray-200
+             hover:border-blue-400 transition-colors">
+    {{ item }}
+  </li>
+{% else %}
+  <li class="p-4 text-gray-500 text-center">No results found.</li>
+{% endfor %}
+</ul>

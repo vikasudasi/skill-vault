@@ -514,8 +514,103 @@ def skill_detail(request: Request, skill_id: str) -> Response:
             "skill": detail,
             "created_at": created_at,
             "integrity_status": "OK",
+            "agent_id": None,
         },
     )
+
+
+@router.get(
+    "/agents/{agent_id}/skills/{skill_id}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_user)],
+)
+def agent_skill_detail(request: Request, agent_id: str, skill_id: str) -> Response:
+    services = _services(request)
+    _assert_agent_access(request, agent_id)
+    try:
+        with locked():
+            detail = services.registry.admin_get(agent_id=agent_id, identifier=skill_id)
+            created_at = _created_at_for(services, detail.id, detail.version)
+    except SkillVaultError as exc:
+        _raise_http(exc)
+    return _templates(request).TemplateResponse(
+        request,
+        "skill_detail.html",
+        {
+            "skill": detail,
+            "created_at": created_at,
+            "integrity_status": "OK",
+            "agent_id": agent_id,
+        },
+    )
+
+
+@router.get("/skills/{skill_id}/files/{file_id}", response_class=HTMLResponse)
+def skill_file_detail(request: Request, skill_id: str, file_id: str) -> Response:
+    services = _services(request)
+    try:
+        with locked():
+            services.registry.get(identifier=skill_id, agent_key=None)
+            skill_file = services.registry.get_skill_file(file_id)
+            version_id = services.registry.current_version_id(skill_id)
+            if skill_file.skill_version_id != version_id:
+                raise HTTPException(status_code=404, detail="file not found for this skill")
+    except SkillVaultError as exc:
+        _raise_http(exc)
+    return _templates(request).TemplateResponse(
+        request,
+        "skill_file_detail.html",
+        {
+            "skill_id": skill_id,
+            "file": skill_file,
+        },
+    )
+
+
+@router.post(
+    "/agents/{agent_id}/skills/{skill_id}/files",
+    dependencies=[Depends(require_user)],
+)
+def upload_skill_file(
+    request: Request,
+    agent_id: str,
+    skill_id: str,
+    kind: str = Form(...),
+    filename: str = Form(...),
+    content: str = Form(...),
+) -> RedirectResponse:
+    services = _services(request)
+    _assert_agent_access(request, agent_id)
+    try:
+        with locked():
+            _assert_skill_owner(services, agent_id, skill_id)
+            version_id = services.registry.current_version_id(skill_id)
+            services.registry.add_skill_file(version_id, kind, filename, content)
+    except SkillVaultError as exc:
+        _raise_http(exc)
+    return RedirectResponse(url=f"/skills/{skill_id}", status_code=303)
+
+
+@router.post(
+    "/agents/{agent_id}/skills/{skill_id}/files/{file_id}/delete",
+    dependencies=[Depends(require_user)],
+)
+def delete_skill_file(
+    request: Request, agent_id: str, skill_id: str, file_id: str
+) -> RedirectResponse:
+    services = _services(request)
+    _assert_agent_access(request, agent_id)
+    try:
+        with locked():
+            _assert_skill_owner(services, agent_id, skill_id)
+            skill_file = services.registry.get_skill_file(file_id)
+            version_id = services.registry.current_version_id(skill_id)
+            if skill_file.skill_version_id != version_id:
+                raise HTTPException(status_code=404, detail="file not found for this skill")
+            services.registry.delete_skill_file(file_id)
+    except SkillVaultError as exc:
+        _raise_http(exc)
+    return RedirectResponse(url=f"/skills/{skill_id}", status_code=303)
 
 
 def _browse_page(services: Services, query: str, page: int) -> tuple[list[SkillCard], bool]:
@@ -664,6 +759,17 @@ def _assert_agent_access(request: Request, agent_id: str) -> None:
         row = _owned_agent_row(services, user, agent_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+
+def _assert_skill_owner(services: Services, agent_id: str, skill_id: str) -> None:
+    row = services.db.execute(
+        "SELECT owner_agent_id FROM skills WHERE id = ?",
+        (skill_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    if row["owner_agent_id"] != agent_id:
+        raise HTTPException(status_code=403, detail="only the owning agent may modify files")
 
 
 def _session_cookie_name(request: Request) -> str:

@@ -549,6 +549,23 @@ td code {
   line-height: 1.55;
 }
 
+.attached-files li > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-upload-form {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(var(--sv-border));
+}
+
+.file-upload-form h4 {
+  margin: 0;
+}
+
 .skill-body pre {
   background: #0f172a;
   color: #e2e8f0;

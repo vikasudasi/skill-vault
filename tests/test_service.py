@@ -337,11 +337,14 @@ def test_mcp_server_registers_all_tools(tmp_path):
     assert names == [
         "delete_skill",
         "get_skill",
+        "get_skill_file",
         "list_global_skills",
         "list_my_skills",
+        "list_skill_files",
         "publish_skill",
         "search_skills",
         "update_skill",
+        "upload_skill_file",
     ]
 
     # call a real tool through the FastMCP runtime

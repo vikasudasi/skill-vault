@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ file.filename }} — Skill File{% endblock %}
+{% block content %}
+<section class="panel detail-header">
+  <div class="detail-title-row">
+    <h2 class="detail-name">{{ file.filename }}</h2>
+    <span class="badge badge-{{ 'verified' if file.kind == 'script' else 'user' }}">{{ file.kind }}</span>
+  </div>
+  <p class="muted"><a href="/skills/{{ skill_id }}">← Back to skill</a></p>
+</section>
+
+<section class="panel">
+  <div class="code-toolbar">
+    <span class="muted">Content hash: <code>{{ file.content_hash }}</code></span>
+  </div>
+  <pre class="code-block"><code>{{ file.content }}</code></pre>
+</section>
+{% endblock %}

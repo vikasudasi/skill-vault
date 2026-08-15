@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTMX + Alpine Demo</title>
+<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+<script src="https://unpkg.com/alpinejs@3.14.1" defer></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-8" x-data="{ dark: false }">
+<div class="max-w-xl mx-auto">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Search Demo</h1>
+    <button @click="dark = !dark"
+            :class="dark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'"
+            class="px-3 py-1 rounded text-sm">Toggle Dark</button>
+  </div>
+
+  <!-- Search form: HTMX-driven, triggers on keyup -->
+  <input type="search" name="q" placeholder="Type to search..."
+         hx-get="/search" hx-trigger="keyup changed delay:200ms"
+         hx-target="#results" hx-swap="innerHTML"
+         class="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4
+                focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+  <!-- HTMX swap target -->
+  <div id="results">
+    {% include 'results.html' %}
+  </div>
+</div>
+</body>
+</html>

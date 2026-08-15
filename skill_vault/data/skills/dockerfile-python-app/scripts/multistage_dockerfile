@@ -1,0 +1,54 @@
+# Multi-stage Dockerfile for a production Python web app
+#
+# Stage 1: builder — compile wheels, no runtime cruft
+# Stage 2: runtime — slim, non-root, only what's needed
+#
+# Build:
+#   docker build -t myapp:latest .
+# Run:
+#   docker run -p 8080:8080 --env-file .env myapp:latest
+
+# ── Stage 1: Builder ────────────────────────────────────────────────────
+
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /build
+
+# Install build deps, compile wheels
+COPY pyproject.toml ./
+RUN pip install --upgrade pip \
+    && pip wheel --wheel-dir=/wheels .
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────
+
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install wheels from builder (no build deps in runtime)
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/*.whl \
+    && rm -rf /wheels
+
+# Copy application code
+COPY app/ ./app/
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8080
+
+# Healthcheck
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
