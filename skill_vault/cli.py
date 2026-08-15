@@ -168,7 +168,13 @@ def reindex_command(db_path: str | None, force: bool) -> None:
     resolved_db_path = db_path or settings.db_path
     db = connect(resolved_db_path)
     run_migrations(db, "migrations")
-    store = build_store(settings.vector_backend, resolved_db_path, settings.pgvector_dsn)
+    store = build_store(
+        settings.vector_backend,
+        resolved_db_path,
+        settings.pgvector_dsn,
+        qdrant_url=settings.qdrant_url,
+        qdrant_path=settings.qdrant_path,
+    )
     embedder = Embedder(settings.embed_model)
     service = SearchService(db, store, embedder)
     count = service.reindex_all()

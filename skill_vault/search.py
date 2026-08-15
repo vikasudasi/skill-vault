@@ -18,6 +18,7 @@ Design (see docs/SPEC.md §6 and ADR-001):
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
@@ -100,7 +101,16 @@ class VectorStore(ABC):
         self._body_weight = body_weight
 
     @abstractmethod
-    def upsert(self, version_id: str, meta: list[float], body: list[float]) -> None:
+    def upsert(
+        self,
+        version_id: str,
+        meta: list[float],
+        body: list[float],
+        *,
+        visibility: str | None = None,
+        owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
         """Insert or replace the meta + body vectors for ``version_id``."""
 
     @abstractmethod
@@ -113,8 +123,15 @@ class VectorStore(ABC):
         meta: list[float],
         body: list[float],
         top_k: int,
+        *,
+        filter: dict[str, str] | None = None,
     ) -> list[tuple[str, float]]:
-        """Return ``(version_id, combined_similarity)`` pairs, best-first."""
+        """Return ``(version_id, combined_similarity)`` pairs, best-first.
+
+        ``filter`` is an optional payload filter dict of the form
+        ``{"visibility": "global", "owner_agent_id": "..."}``; backends without
+        native filtering ignore it.
+        """
 
     def _combine(self, meta_sim: float | None, body_sim: float | None) -> float:
         """Weighted combine of per-channel similarities (0..1); missing channel -> 0 weight."""
@@ -165,7 +182,16 @@ class SqliteVecStore(VectorStore):
     def _ensure_ext(self) -> None:
         self._enable_extension(self._db)
 
-    def upsert(self, version_id: str, meta: list[float], body: list[float]) -> None:
+    def upsert(
+        self,
+        version_id: str,
+        meta: list[float],
+        body: list[float],
+        *,
+        visibility: str | None = None,
+        owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
         if len(meta) != EMBED_DIM or (body and len(body) != EMBED_DIM):
             raise ValueError(f"sqlite-vec requires {EMBED_DIM}-dimensional vectors.")
         self._ensure_ext()
@@ -229,6 +255,8 @@ class SqliteVecStore(VectorStore):
         meta: list[float],
         body: list[float],
         top_k: int,
+        *,
+        filter: dict[str, str] | None = None,
     ) -> list[tuple[str, float]]:
         if top_k <= 0:
             return []
@@ -304,7 +332,16 @@ class PgVectorStore(VectorStore):
             self._conn.commit()
         return self._conn
 
-    def upsert(self, version_id: str, meta: list[float], body: list[float]) -> None:
+    def upsert(
+        self,
+        version_id: str,
+        meta: list[float],
+        body: list[float],
+        *,
+        visibility: str | None = None,
+        owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
         conn = self._connect()
         conn.execute(
             "INSERT INTO skill_vectors(version_id, meta, body) VALUES(%s, %s, %s) "
@@ -323,6 +360,8 @@ class PgVectorStore(VectorStore):
         meta: list[float],
         body: list[float],
         top_k: int,
+        *,
+        filter: dict[str, str] | None = None,
     ) -> list[tuple[str, float]]:
         if top_k <= 0:
             return []
@@ -338,16 +377,159 @@ class PgVectorStore(VectorStore):
         return [(row[0], float(row[1])) for row in rows]
 
 
+class QdrantVectorStore(VectorStore):
+    """Qdrant-backed vector index (local embedded or remote server).
+
+    Two collections (``skill_embeddings_meta`` / ``skill_embeddings_body``), one
+    point per channel per skill version. Every point carries a payload with
+    ``version_id``/``visibility``/``owner_agent_id``/``owner_user_id`` so queries
+    can apply scope filters natively inside Qdrant instead of only post-filtering.
+    """
+
+    META_COLLECTION = "skill_embeddings_meta"
+    BODY_COLLECTION = "skill_embeddings_body"
+    # Namespace for deterministic point ids when ``version_id`` isn't a UUID.
+    _NAMESPACE = uuid.UUID("6f8f5771-5065-4b3e-9c5e-9f0f5f7a3d1a")
+
+    def __init__(
+        self,
+        *,
+        url: str | None = None,
+        path: str | None = None,
+        meta_weight: float = META_WEIGHT,
+        body_weight: float = BODY_WEIGHT,
+    ) -> None:
+        super().__init__(meta_weight=meta_weight, body_weight=body_weight)
+        from qdrant_client import QdrantClient
+        from qdrant_client.http.models import Distance, VectorParams
+
+        self._client: Any = QdrantClient(url=url) if url else QdrantClient(path=path or ":memory:")
+        for name in (self.META_COLLECTION, self.BODY_COLLECTION):
+            if not self._client.collection_exists(name):
+                self._client.create_collection(
+                    collection_name=name,
+                    vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
+                )
+
+    @staticmethod
+    def _point_id(version_id: str) -> uuid.UUID:
+        try:
+            return uuid.UUID(version_id)
+        except (ValueError, AttributeError, TypeError):
+            return uuid.uuid5(QdrantVectorStore._NAMESPACE, version_id)
+
+    @staticmethod
+    def _translate_filter(filter_dict: dict[str, str] | None) -> Any:
+        if not filter_dict:
+            return None
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
+        return Filter(
+            must=[
+                FieldCondition(key=key, match=MatchValue(value=value))
+                for key, value in filter_dict.items()
+            ]
+        )
+
+    def upsert(
+        self,
+        version_id: str,
+        meta: list[float],
+        body: list[float],
+        *,
+        visibility: str | None = None,
+        owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
+        pid = self._point_id(version_id)
+        payload = {
+            "version_id": version_id,
+            "visibility": visibility,
+            "owner_agent_id": owner_agent_id,
+            "owner_user_id": owner_user_id,
+        }
+        if meta:
+            self._upsert_channel(self.META_COLLECTION, pid, meta, payload)
+        if body:
+            self._upsert_channel(self.BODY_COLLECTION, pid, body, payload)
+
+    def _upsert_channel(
+        self, collection: str, pid: uuid.UUID, vector: list[float], payload: dict[str, Any]
+    ) -> None:
+        from qdrant_client.http.models import PointStruct
+
+        if len(vector) != EMBED_DIM:
+            raise ValueError(f"qdrant requires {EMBED_DIM}-dimensional vectors.")
+        self._client.upsert(
+            collection_name=collection,
+            points=[PointStruct(id=pid, vector=vector, payload=payload)],
+        )
+
+    def delete(self, version_id: str) -> None:
+        pid = self._point_id(version_id)
+        for name in (self.META_COLLECTION, self.BODY_COLLECTION):
+            self._client.delete(collection_name=name, points_selector=[pid])
+
+    def query(
+        self,
+        meta: list[float],
+        body: list[float],
+        top_k: int,
+        *,
+        filter: dict[str, str] | None = None,
+    ) -> list[tuple[str, float]]:
+        if top_k <= 0:
+            return []
+        qdrant_filter = self._translate_filter(filter)
+        pool = max(top_k * 4, 10)
+        scores: dict[str, dict[str, float]] = {}
+        if meta:
+            self._collect(self.META_COLLECTION, meta, qdrant_filter, pool, scores, "meta")
+        if body:
+            self._collect(self.BODY_COLLECTION, body, qdrant_filter, pool, scores, "body")
+        ranked = [
+            (vid, self._combine(chan.get("meta"), chan.get("body"))) for vid, chan in scores.items()
+        ]
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        return ranked[:top_k]
+
+    def _collect(
+        self,
+        collection: str,
+        vector: list[float],
+        qdrant_filter: Any,
+        limit: int,
+        scores: dict[str, dict[str, float]],
+        channel: str,
+    ) -> None:
+        response = self._client.query_points(
+            collection_name=collection,
+            query=vector,
+            query_filter=qdrant_filter,
+            limit=limit,
+        )
+        for point in response.points:
+            version_id = point.payload.get("version_id")
+            if version_id is None:
+                continue
+            scores.setdefault(str(version_id), {})[channel] = max(0.0, float(point.score))
+
+
 def build_store(
     backend: str,
     db_path: str,
     pgvector_dsn: str | None = None,
+    *,
+    qdrant_url: str | None = None,
+    qdrant_path: str | None = None,
 ) -> VectorStore:
     """Factory selecting the vector backend from config (swappable per ADR-001)."""
     if backend == "pgvector":
         if not pgvector_dsn:
             raise ValueError("pgvector backend requires SKILL_VAULT_PGVECTOR_DSN.")
         return PgVectorStore(pgvector_dsn)
+    if backend == "qdrant":
+        return QdrantVectorStore(url=qdrant_url, path=qdrant_path)
     return SqliteVecStore(db_path)
 
 
@@ -382,7 +564,14 @@ class SearchService:
             raise KeyError(f"no skill version with id {version_id!r}")
         meta_vec = self._embedder.embed(build_meta_text(version))
         body_vec = self._embedder.embed(build_body_text(version))
-        self._store.upsert(version_id, meta_vec, body_vec)
+        self._store.upsert(
+            version_id,
+            meta_vec,
+            body_vec,
+            visibility=self._visibility(version_id),
+            owner_agent_id=self._owner(version_id),
+            owner_user_id=self._owner_user_id(version_id),
+        )
 
     def reindex_all(self) -> int:
         """(Re)embed every skill version in the registry. Idempotent & resumable."""
@@ -402,7 +591,14 @@ class SearchService:
         meta_vecs = self._embedder.embed_batch(metas)
         body_vecs = self._embedder.embed_batch(bodies)
         for version, meta_vec, body_vec in zip(versions, meta_vecs, body_vecs, strict=True):
-            self._store.upsert(version.id, meta_vec, body_vec)
+            self._store.upsert(
+                version.id,
+                meta_vec,
+                body_vec,
+                visibility=self._visibility(version.id),
+                owner_agent_id=self._owner(version.id),
+                owner_user_id=self._owner_user_id(version.id),
+            )
         return len(versions)
 
     def remove_version(self, version_id: str) -> None:
@@ -434,7 +630,10 @@ class SearchService:
             owner_user_id = self._agent_owner_user_id(owner_agent_id)
         meta_vec = self._embedder.embed(query)
         body_vec = self._embedder.embed(query)  # same query, scored on both channels
-        candidates = self._store.query(meta_vec, body_vec, top_k=max(top_k * 4, 40))
+        scope_filter = self._scope_filter(scope, owner_agent_id, owner_user_id)
+        candidates = self._store.query(
+            meta_vec, body_vec, top_k=max(top_k * 4, 40), filter=scope_filter
+        )
 
         allowed = self._scope_predicate(scope, owner_agent_id, owner_user_id)
         results: list[tuple[str, float]] = []
@@ -493,6 +692,23 @@ class SearchService:
             return is_own
         # default: global
         return is_global
+
+    def _scope_filter(
+        self, scope: str, owner_agent_id: str | None, owner_user_id: str | None
+    ) -> dict[str, str] | None:
+        """Translate scope into a payload filter for backends with native filtering.
+
+        Only scopes expressible as a pure-AND match are translated. ``team`` and
+        ``all`` require OR semantics, so they return ``None`` and rely on the
+        post-filter backstop (``_scope_predicate``).
+        """
+        if scope == "global":
+            return {"visibility": "global"}
+        if scope == "personal":
+            if owner_agent_id is None:
+                return None  # post-filter already yields nothing
+            return {"visibility": "personal", "owner_agent_id": owner_agent_id}
+        return None
 
     def _load_version(self, version_id: str) -> SkillVersion | None:
         row = self._db.execute(

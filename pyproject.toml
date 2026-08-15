@@ -27,6 +27,7 @@ dependencies = [
   "sqlite-vec",
   "sentence-transformers",
   "pydantic-settings",
+  "qdrant-client",
   "click",
   "rich",
   "cryptography",

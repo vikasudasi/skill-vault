@@ -105,7 +105,16 @@ class FakeStore(VectorStore):
         self._items: dict[str, tuple[list[float], list[float]]] = {}
         self._order: list[str] = []
 
-    def upsert(self, version_id: str, meta: list[float], body: list[float]) -> None:
+    def upsert(
+        self,
+        version_id: str,
+        meta: list[float],
+        body: list[float],
+        *,
+        visibility: str | None = None,
+        owner_agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
         if version_id not in self._items:
             self._order.append(version_id)
         self._items[version_id] = (meta, body)
@@ -120,6 +129,8 @@ class FakeStore(VectorStore):
         meta: list[float],
         body: list[float],
         top_k: int,
+        *,
+        filter: dict[str, str] | None = None,
     ) -> list[tuple[str, float]]:
         return [(vid, 1.0) for vid in self._order][:top_k]
 

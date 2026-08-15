@@ -23,6 +23,8 @@ class Settings:
     rate_limit_per_minute: int
     admin_username: str
     admin_password: str
+    qdrant_url: str | None = None
+    qdrant_path: str | None = "./qdrant_data"
 
     @property
     def curator_public_key(self) -> str | None:
@@ -57,6 +59,8 @@ def get_settings() -> Settings:
             "SKILL_VAULT_ADMIN_PASSWORD",
             "Set a strong SKILL_VAULT_ADMIN_PASSWORD (e.g. in .env) before starting the Skill Vault dashboard.",
         ),
+        qdrant_url=os.getenv("SKILL_VAULT_QDRANT_URL") or None,
+        qdrant_path=os.getenv("SKILL_VAULT_QDRANT_PATH") or "./qdrant_data",
     )
 
 

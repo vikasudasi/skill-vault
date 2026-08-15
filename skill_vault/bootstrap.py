@@ -82,7 +82,13 @@ def build_services(settings: Settings | None = None) -> Services:
     migration_db.close()
     db = connect_threadlocal(settings.db_path)
     auth = AuthService(cast(sqlite3.Connection, db), rate_limit=settings.rate_limit_per_minute)
-    store = build_store(settings.vector_backend, settings.db_path, settings.pgvector_dsn)
+    store = build_store(
+        settings.vector_backend,
+        settings.db_path,
+        settings.pgvector_dsn,
+        qdrant_url=settings.qdrant_url,
+        qdrant_path=settings.qdrant_path,
+    )
     embedder = Embedder(settings.embed_model)
     search = SearchService(cast(sqlite3.Connection, db), store, embedder)
     trust = TrustService(
