@@ -55,20 +55,11 @@
 <section class="panel">
   <h3>Skill file</h3>
   {% if skill.body %}
-  <div class="tabs" role="tablist">
-    <button type="button" class="tab-button is-active" data-tab-target="tab-body-rendered" role="tab">Rendered</button>
-    <button type="button" class="tab-button" data-tab-target="tab-body-raw" role="tab">Raw</button>
+  <div class="code-toolbar">
+    <span class="muted">Raw skill file (markdown source)</span>
+    <button type="button" data-copy-target="raw-body">Copy</button>
   </div>
-  <div id="tab-body-rendered" class="tab-panel is-active" role="tabpanel">
-    <div class="skill-body">{{ skill.body | markdown | safe }}</div>
-  </div>
-  <div id="tab-body-raw" class="tab-panel" role="tabpanel">
-    <div class="code-toolbar">
-      <span class="muted">Raw skill file (markdown source)</span>
-      <button type="button" data-copy-target="raw-body">Copy</button>
-    </div>
-    <pre id="raw-body" class="code-block"><code class="language-markdown">{{ skill.body }}</code></pre>
-  </div>
+  <pre id="raw-body" class="code-block"><code class="language-markdown">{{ skill.body }}</code></pre>
   {% else %}
   <p class="muted">No body content.</p>
   {% endif %}
