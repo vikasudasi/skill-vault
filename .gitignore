@@ -34,3 +34,8 @@ htmlcov/
 run/
 *.db.bak-*
 .env.bak*
+
+# Qdrant (vector store server + embedded markers)
+storage/
+qdrant_data/
+.qdrant-initialized
