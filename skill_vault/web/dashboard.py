@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from datetime import UTC, datetime
 from typing import NoReturn, cast
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
@@ -406,6 +407,9 @@ def browse(
                 min_trust=trust_filter,
                 sort=browse_sort,
             )
+            total_global = services.registry.count_global()
+            verified_count = services.registry.count_global(min_trust="verified")
+            latest_updated = _latest_global_update(services)
     except SkillVaultError as exc:
         _raise_http(exc)
     start = (current_page - 1) * _PAGE_SIZE + 1 if cards else 0
@@ -431,6 +435,9 @@ def browse(
             "min_trust": trust_filter,
             "sort": browse_sort,
             "page_size": _PAGE_SIZE,
+            "total_global": total_global,
+            "verified_count": verified_count,
+            "latest_updated": latest_updated,
         },
     )
 
@@ -672,6 +679,34 @@ def _browse_page(
         min_trust=min_trust,
     )
     return cards[:_PAGE_SIZE], len(cards) > _PAGE_SIZE, total
+
+
+def _latest_global_update(services: Services) -> str | None:
+    """Return a humanised age of the most recently updated global skill, if any."""
+    row = services.db.execute(
+        "SELECT MAX(updated_at) AS latest FROM skills WHERE visibility = 'global'"
+    ).fetchone()
+    if row is None or row["latest"] is None:
+        return None
+    return _relative_time(str(row["latest"]))
+
+
+def _relative_time(iso: str) -> str:
+    """Humanise an ISO-8601 UTC timestamp (e.g. '3h ago', 'just now')."""
+    try:
+        stamp = datetime.fromisoformat(iso)
+    except ValueError:
+        return "recently"
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    seconds = int((datetime.now(UTC) - stamp).total_seconds())
+    if seconds < 60:
+        return "just now"
+    if seconds < 3600:
+        return f"{seconds // 60}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
 
 
 def _created_at_for(services: Services, skill_id: str, version: int) -> str | None:

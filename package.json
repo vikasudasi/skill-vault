@@ -1,0 +1,12 @@
+{
+  "name": "skill-vault",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend build for Skill Vault — compiles Tailwind CSS locally (no Play CDN).",
+  "scripts": {
+    "build:css": "tailwindcss -i ./tailwind/app.css -o ./skill_vault/web/static/app.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

@@ -35,31 +35,11 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
     />
 
-    {# Tailwind Play CDN (JIT, utilities-only). Colours are wired to the same
-       CSS tokens defined in skillvault.css via rgb(var(--sv-*) / <alpha-value>)
-       so utility classes honour dark mode automatically. #}
-    <script>
-      tailwind = {
-        config: {
-          darkMode: "class",
-          theme: {
-            extend: {
-              colors: {
-                bg: "rgb(var(--sv-bg) / <alpha-value>)",
-                surface: "rgb(var(--sv-surface) / <alpha-value>)",
-                line: "rgb(var(--sv-border) / <alpha-value>)",
-                ink: "rgb(var(--sv-text) / <alpha-value>)",
-                mute: "rgb(var(--sv-muted) / <alpha-value>)",
-                brand: "rgb(var(--sv-primary) / <alpha-value>)",
-                accent: "rgb(var(--sv-accent) / <alpha-value>)",
-              },
-            },
-          },
-        },
-      };
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {# Tailwind — compiled locally via `npm run build:css` (no Play CDN). Colours
+       are wired to the same CSS tokens defined in skillvault.css via
+       rgb(var(--sv-*) / <alpha-value>) so utility classes honour dark mode. #}
 
+    <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', path='skillvault.css') }}" />
     <script defer src="{{ url_for('static', path='skillvault.js') }}"></script>
 

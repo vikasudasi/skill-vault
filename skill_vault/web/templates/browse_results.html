@@ -26,15 +26,15 @@
      href="{{ browse_url(1, '') }}"
      hx-get="{{ browse_url(1, '') }}"
      hx-target="#results" hx-push-url="true">All</a>
-  <a class="chip{% if min_trust == 'verified' %} is-active{% endif %}"
+  <a class="chip chip-tier-verified{% if min_trust == 'verified' %} is-active{% endif %}"
      href="{{ browse_url(1, 'verified') }}"
      hx-get="{{ browse_url(1, 'verified') }}"
      hx-target="#results" hx-push-url="true">verified</a>
-  <a class="chip{% if min_trust == 'public' %} is-active{% endif %}"
+  <a class="chip chip-tier-public{% if min_trust == 'public' %} is-active{% endif %}"
      href="{{ browse_url(1, 'public') }}"
      hx-get="{{ browse_url(1, 'public') }}"
      hx-target="#results" hx-push-url="true">public</a>
-  <a class="chip{% if min_trust == 'user' %} is-active{% endif %}"
+  <a class="chip chip-tier-user{% if min_trust == 'user' %} is-active{% endif %}"
      href="{{ browse_url(1, 'user') }}"
      hx-get="{{ browse_url(1, 'user') }}"
      hx-target="#results" hx-push-url="true">user</a>
@@ -58,7 +58,7 @@
 <ul class="list browse-list">
   {% for skill in skills %}
   <li class="browse-card">
-    <div>
+    <div class="border-l-4 pl-3{% if skill.trust == 'verified' %} border-l-verified{% elif skill.trust == 'user' %} border-l-user-tier{% else %} border-l-public-tier{% endif %}">
       <div class="browse-card-header">
         <a class="browse-card-title" href="/skills/{{ skill.id }}"><strong>{{ skill.name }}</strong></a>
         <span class="badge badge-{{ skill.trust }}">{{ skill.trust }}</span>

@@ -6,6 +6,27 @@
   <p class="page-subtitle">
     Search the shared skill catalog by meaning — discover capabilities published by curators and agents worldwide.
   </p>
+
+  {# Catalog pulse — always visible to give a snapshot of the public registry. #}
+  <div class="catalog-stats">
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-value">{{ total_global }}</span>
+        <span class="stat-label">skills in catalog</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{{ verified_count }}</span>
+        <span class="stat-label">verified</span>
+      </div>
+      {% if latest_updated %}
+      <div class="stat">
+        <span class="stat-value">{{ latest_updated }}</span>
+        <span class="stat-label">last published</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
   {# Search-as-you-type: the input fires an HTMX GET on input (debounced 300ms)
      and on the native `search` event (e.g. clearing via the X). The whole form
      is included so `q`, page=1 reset, and filter/sort params are sent; #results

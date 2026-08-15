@@ -44,3 +44,8 @@ qdrant_data/
 .cursor/
 run_checks.sh
 SPEC-*.md
+
+# Frontend build (compiled Tailwind) + JS tooling
+skill_vault/web/static/app.css
+node_modules/
+
