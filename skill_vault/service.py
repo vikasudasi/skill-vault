@@ -464,6 +464,7 @@ class RegistryService:
                 (file_id, version_id, kind, filename.strip(), content, digest, now),
             )
             self._recompute_version_hash(version_id, row)
+            self._resign_verified(version_id, row)
             self._db.commit()
             return SkillFile(
                 id=file_id,
@@ -509,6 +510,7 @@ class RegistryService:
             self._db.execute("DELETE FROM skill_version_files WHERE id = ?", (file_id,))
             if version_row is not None:
                 self._recompute_version_hash(row["skill_version_id"], version_row)
+                self._resign_verified(row["skill_version_id"], version_row)
             self._db.commit()
 
     def _list_skill_files_raw(self, version_id: str) -> list[SkillFile]:
@@ -534,6 +536,32 @@ class RegistryService:
         self._db.execute(
             "UPDATE skill_versions SET content_hash = ? WHERE id = ?",
             (digest, version_id),
+        )
+
+    def _resign_verified(self, version_id: str, row: Any) -> None:
+        """Re-sign a verified version after its content hash changed (file add/remove).
+
+        ``add_skill_file`` / ``delete_skill_file`` mutate the file-inclusive payload,
+        which invalidates any pre-existing detached signature over the old payload.
+        When the version was signed by the curator/super-agent (tier ``verified``),
+        re-sign the new payload so integrity + signature checks stay consistent.
+        """
+        curator = self._curator_key
+        if curator is None:
+            return
+        trust_row = self._db.execute(
+            "SELECT tier, signed_by FROM trust WHERE skill_version_id = ?",
+            (version_id,),
+        ).fetchone()
+        if trust_row is None or trust_row["tier"] != TIER_VERIFIED:
+            return
+        payload = self._payload_for(row)
+        self._trust.record(
+            version_id,
+            TIER_VERIFIED,
+            signature=sign(payload, curator),
+            public_key=public_key_from_private_key(curator),
+            signed_by=trust_row["signed_by"],
         )
 
     # -- internal helpers ---------------------------------------------------

@@ -13,19 +13,25 @@ from skill_vault.errors import NotFoundError
 from skill_vault.models import SkillInput
 from skill_vault.search import SearchService, SqliteVecStore
 from skill_vault.service import RegistryService
-from skill_vault.trust import TrustService, canonical_payload, content_hash
+from skill_vault.trust import (
+    TIER_VERIFIED,
+    TrustService,
+    canonical_payload,
+    content_hash,
+    generate_curator_keypair,
+)
 
 MIGRATIONS = str(Path(__file__).resolve().parent.parent / "migrations")
 
 
-def _services(tmp_path):
+def _services(tmp_path, curator_key=None):
     db = connect(str(tmp_path / "app.db"))
     run_migrations(db, MIGRATIONS)
     auth = AuthService(db, rate_limit=100000)
     store = SqliteVecStore(str(tmp_path / "vec.db"))
     search = SearchService(db, store, FakeEmbedder())
     trust = TrustService(db, allow_tiers=("verified", "user", "public"))
-    reg = RegistryService(db, auth=auth, search=search, trust=trust)
+    reg = RegistryService(db, auth=auth, search=search, trust=trust, curator_key=curator_key)
     return db, auth, reg
 
 
@@ -177,3 +183,42 @@ def test_cascade_delete_removes_files(tmp_path):
         "SELECT COUNT(*) AS c FROM skill_version_files WHERE id = ?", (sf.id,)
     ).fetchone()["c"]
     assert count == 0
+
+
+def test_add_skill_file_resigns_verified_version(tmp_path):
+    """Adding a file to a curator-signed (verified) skill must re-sign the
+    file-inclusive payload so the detached signature stays valid."""
+    priv, _pub = generate_curator_keypair()
+    db, auth, reg = _services(tmp_path, curator_key=priv)
+    onboard = auth.onboard("agent-a")
+    res = reg.admin_publish(onboard.agent_id, _skill(), visibility="global")
+    vid = _version_id(db, res.id)
+
+    # Pre-condition: global admin publish is auto-signed verified.
+    assert reg.get(identifier=res.id).verified is True
+    assert reg.get(identifier=res.id).trust == TIER_VERIFIED
+
+    reg.add_skill_file(vid, "script", "deploy.sh", "echo deploy")
+
+    detail = reg.get(identifier=res.id)
+    # Signature is still valid over the new file-inclusive payload.
+    assert detail.verified is True
+    assert detail.trust == TIER_VERIFIED
+
+
+def test_delete_skill_file_resigns_verified_version(tmp_path):
+    """Removing a file from a verified skill re-signs the reduced payload."""
+    priv, _pub = generate_curator_keypair()
+    db, auth, reg = _services(tmp_path, curator_key=priv)
+    onboard = auth.onboard("agent-a")
+    res = reg.admin_publish(onboard.agent_id, _skill(), visibility="global")
+    vid = _version_id(db, res.id)
+    sf = reg.add_skill_file(vid, "reference", "notes.md", "extra context")
+    assert reg.get(identifier=res.id).verified is True
+
+    reg.delete_skill_file(sf.id)
+
+    detail = reg.get(identifier=res.id)
+    assert detail.verified is True
+    assert detail.trust == TIER_VERIFIED
+    assert detail.files == []
