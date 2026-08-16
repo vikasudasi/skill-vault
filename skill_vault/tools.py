@@ -172,9 +172,10 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
 
     @server.tool(
         description=(
-            "Attach a script or reference file to an existing skill version. kind must be "
-            "'script' or 'reference'. filename must be unique within the version. Returns file "
-            "metadata (no content in list views; use get_skill_file for full content)."
+            "Attach a script or reference file to an existing skill VERSION. kind must be "
+            "'script' or 'reference'. filename must be unique within the version. Do this "
+            "AFTER create/update_skill to add runnable scripts or reference docs to a skill; "
+            "returns file metadata (call get_skill_file for the full content)."
         )
     )
     def upload_skill_file(
@@ -192,8 +193,9 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
 
     @server.tool(
         description=(
-            "List attached script/reference files for a skill version (metadata only, no content). "
-            "Use get_skill_file to fetch full file content."
+            "List attached script/reference files for a skill version — METADATA ONLY (id, "
+            "filename, kind, content_hash, no content). Use first to find file ids and see what a "
+            "skill ships; call get_skill_file with a returned file_id to fetch the actual content."
         )
     )
     def list_skill_files(skill_version_id: str) -> list[SkillFileDetail]:
@@ -201,7 +203,10 @@ def register_tools(server: FastMCP, registry: RegistryService) -> None:
             return registry.list_skill_files(skill_version_id)
 
     @server.tool(
-        description=("Fetch the full content of an attached script or reference file by file id.")
+        description=(
+            "Fetch the FULL content of an attached script or reference file by its file_id. "
+            "Get the file_id from list_skill_files (or a create/update/publication response) first."
+        )
     )
     def get_skill_file(file_id: str) -> SkillFile:
         with locked(), _translate_errors():
